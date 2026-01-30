@@ -1,0 +1,128 @@
+{
+    "baseURL": "https://rewards.bing.com/",
+    "sessionPath": "sessions",
+    "dryRun": false,
+    "execution": {
+        "parallel": false,
+        "runOnZeroPoints": false,
+        "clusters": 1,
+        "passesPerRun": 2
+    },
+    "jobState": {
+        "enabled": true,
+        "dir": "",
+        "autoResetOnComplete": true
+    },
+    "workers": {
+        "doDailySet": true,
+        "doMorePromotions": true,
+        "doPunchCards": true,
+        "doDesktopSearch": true,
+        "doMobileSearch": true,
+        "doDailyCheckIn": true,
+        "doReadToEarn": true,
+        "doFreeRewards": false,
+        "bundleDailySetWithSearch": true
+    },
+    "search": {
+        "useLocalQueries": false,
+        "settings": {
+            "useGeoLocaleQueries": true,
+            "scrollRandomResults": true,
+            "clickRandomResults": true,
+            "retryMobileSearchAmount": 2,
+            "semanticDedup": true,
+            "semanticDedupThreshold": 0.65,
+            "delay": {
+                "min": "30s",
+                "max": "1min"
+            }
+        }
+    },
+    "queryDiversity": {
+        "enabled": true,
+        "sources": [
+            "local-fallback"
+        ],
+        "maxQueriesPerSource": 10,
+        "cacheMinutes": 30
+    },
+    "humanization": {
+        "enabled": true,
+        "stopOnBan": true,
+        "immediateBanAlert": true,
+        "actionDelay": {
+            "min": 500,
+            "max": 2200
+        },
+        "gestureMoveProb": 0.65,
+        "gestureScrollProb": 0.4,
+        "allowedWindows": []
+    },
+    "riskManagement": {
+        "enabled": true,
+        "stopOnCritical": true
+    },
+    "retryPolicy": {
+        "maxAttempts": 3,
+        "baseDelay": 1000,
+        "maxDelay": "30s",
+        "multiplier": 2,
+        "jitter": 0.2
+    },
+    "browser": {
+        "headless": false,
+        "globalTimeout": "30s"
+    },
+    "fingerprinting": {
+        "saveFingerprint": {
+            "mobile": true,
+            "desktop": true
+        }
+    },
+    "proxy": {
+        "proxyGoogleTrends": true,
+        "proxyBingTerms": true
+    },
+    "webhook": {
+        "enabled": false,
+        "url": ""
+    },
+    "conclusionWebhook": {
+        "enabled": false,
+        "url": ""
+    },
+    "ntfy": {
+        "enabled": false,
+        "url": "",
+        "topic": "rewards",
+        "authToken": ""
+    },
+    "logging": {
+        "excludeFunc": [
+            "SEARCH-CLOSE-TABS",
+            "LOGIN-NO-PROMPT",
+            "FLOW"
+        ],
+        "webhookExcludeFunc": [
+            "SEARCH-CLOSE-TABS",
+            "LOGIN-NO-PROMPT",
+            "FLOW"
+        ],
+        "redactEmails": true
+    },
+    "dashboard": {
+        "enabled": false,
+        "port": 3000,
+        "host": "127.0.0.1"
+    },
+    "scheduling": {
+        "enabled": false
+    },
+    "update": {
+        "enabled": false
+    },
+    "errorReporting": {
+        "enabled": false
+    }
+}
