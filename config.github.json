@@ -42,10 +42,13 @@
     "queryDiversity": {
         "enabled": true,
         "sources": [
+            "google-trends",
+            "bing-trends",
+            "google-trends-daily",
             "local-fallback"
         ],
-        "maxQueriesPerSource": 10,
-        "cacheMinutes": 30
+        "maxQueriesPerSource": 15,
+        "cacheMinutes": 60
     },
     "humanization": {
         "enabled": true,
