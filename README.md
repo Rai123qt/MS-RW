@@ -1,9 +1,9 @@
 # 🤖 MS Rewards Hybrid Bot
 
-> **Hybrid Bot** = LightZirconite + Netsky + Custom Enhancements
+> **Automated Microsoft Rewards point collection**
 
 <p align="center">
-	<img src="assets/logo.png" alt="Hybrid Rewards Bot Logo" width="180" />
+	<img src="assets/logo.png" alt="Hybrid Bot Logo" width="180" />
 </p>
 
 <p align="center">
@@ -89,7 +89,7 @@ MS-RW/
     {
         "email": "your@outlook.com",
         "password": "YourPassword",
-        "totpSecret": "",  // Optional: Authenticator TOTP secret
+        "totpSecret": "",
         "proxy": {
             "url": "http://your-proxy-ip",
             "port": 5338,
@@ -145,13 +145,3 @@ npm run dashboard  # Web monitoring UI
 > **Use at your own risk.**  
 > This software is for **educational purposes only**.  
 > Microsoft may suspend accounts using automation tools.
-
----
-
-## 🙏 Credits
-
-Based on:
-- [LightZirconite/Microsoft-Rewards-Bot](https://github.com/LightZirconite/Microsoft-Rewards-Bot)
-- [TheNetsky/Microsoft-Rewards-Script](https://github.com/TheNetsky/Microsoft-Rewards-Script)
-
-Enhanced with multi-source query engine, improved humanization, and GitHub Actions support.
