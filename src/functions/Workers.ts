@@ -351,7 +351,8 @@ export class Workers {
         page = await this.bot.browser.utils.getLatestTab(page)
 
         // Execute activity with timeout protection using Promise.race
-        const timeoutMs = this.bot.utils.stringToMs(this.bot.config?.globalTimeout ?? '30s') * 2
+        // Default 60 seconds, can be overridden via env
+        const timeoutMs = parseInt(process.env.ACTIVITY_TIMEOUT_MS || '60000', 10)
 
         try {
             await retry.run(async () => {
