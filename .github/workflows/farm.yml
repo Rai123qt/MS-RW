@@ -39,27 +39,28 @@ jobs:
         sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64
 
     - name: Setup Accounts from Secret
+      env:
+        ACCOUNTS_DATA: ${{ secrets.ACCOUNTS_JSON }}
       run: |
-        echo '${{ secrets.ACCOUNTS_JSON }}' > src/accounts.jsonc
-      shell: bash
+        printf '%s' "$ACCOUNTS_DATA" > src/accounts.jsonc
 
     - name: Shuffle Accounts Order
       run: |
-        # Shuffle accounts array in accounts.jsonc for randomization
-        node -e "
-          const fs = require('fs');
-          const content = fs.readFileSync('src/accounts.jsonc', 'utf8');
-          // Remove comments for JSON parsing
-          const jsonContent = content.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '');
-          const accounts = JSON.parse(jsonContent);
-          // Fisher-Yates shuffle
-          for (let i = accounts.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [accounts[i], accounts[j]] = [accounts[j], accounts[i]];
+        node -e '
+          const fs = require("fs");
+          try {
+            const content = fs.readFileSync("src/accounts.jsonc", "utf8");
+            const accounts = JSON.parse(content);
+            for (let i = accounts.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [accounts[i], accounts[j]] = [accounts[j], accounts[i]];
+            }
+            fs.writeFileSync("src/accounts.jsonc", JSON.stringify(accounts, null, 2));
+            console.log("Shuffled", accounts.length, "accounts");
+          } catch (e) {
+            console.log("Shuffle skipped (only 1 account or parse error):", e.message);
           }
-          fs.writeFileSync('src/accounts.jsonc', JSON.stringify(accounts, null, 2));
-          console.log('Shuffled', accounts.length, 'accounts');
-        "
+        '
 
     - name: Build TypeScript
       run: npm run build
