@@ -1,0 +1,27 @@
+[
+    {
+        "email": "thomas.baker.k49m@outlook.com",
+        "password": "MoonLight#77",
+        "totpSecret": "",
+        "recoveryEmail": "",
+        "geoLocale": "US",
+        "langCode": "en",
+        "proxy": {
+            "proxyAxios": false,
+            "url": "http://9.142.37.167",
+            "port": 5338,
+            "username": "yaxfvucs",
+            "password": "bi4ir2l6hufd",
+            "credentials": [
+                {
+                    "username": "yaxfvucs",
+                    "password": "bi4ir2l6hufd"
+                }
+            ]
+        },
+        "saveFingerprint": {
+            "mobile": true,
+            "desktop": true
+        }
+    }
+]

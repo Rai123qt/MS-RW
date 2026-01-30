@@ -1,0 +1,43 @@
+import { Page } from 'patchright'
+
+import { TIMEOUTS } from '../../constants'
+import { waitForElementSmart } from '../../util/browser/SmartWait'
+import { Workers } from '../Workers'
+
+
+export class Poll extends Workers {
+
+    async doPoll(page: Page) {
+        this.bot.log(this.bot.isMobile, 'POLL', 'Trying to complete poll')
+
+        try {
+            const buttonId = `#btoption${Math.floor(this.bot.utils.randomNumber(0, 1))}`
+
+            // IMPROVED: Smart wait replaces fixed 10s timeout with adaptive 2s+5s detection
+            const buttonResult = await waitForElementSmart(page, buttonId, {
+                initialTimeoutMs: 2000,
+                extendedTimeoutMs: TIMEOUTS.DASHBOARD_WAIT - 2000,
+                state: 'visible',
+                logFn: (msg) => this.bot.log(this.bot.isMobile, 'POLL', msg)
+            })
+
+            if (!buttonResult.found) {
+                this.bot.log(this.bot.isMobile, 'POLL', `Could not find poll button: ${buttonId}`, 'warn')
+                await page.close()
+                return
+            }
+
+            await this.bot.utils.wait(TIMEOUTS.MEDIUM_LONG)
+            await page.click(buttonId)
+
+            await this.bot.utils.wait(TIMEOUTS.LONG + 1000)
+            await page.close()
+
+            this.bot.log(this.bot.isMobile, 'POLL', 'Completed the poll successfully')
+        } catch (error) {
+            await page.close()
+            this.bot.log(this.bot.isMobile, 'POLL', 'An error occurred:' + error, 'error')
+        }
+    }
+
+}
