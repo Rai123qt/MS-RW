@@ -2,14 +2,13 @@ name: Farm Rewards
 
 on:
   schedule:
-    # Run at 1:00 AM UTC (8:00 AM Vietnam Time)
     - cron: '0 1 * * *'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   farm:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # 6 hours max
+    timeout-minutes: 360
 
     steps:
     - name: Random Startup Delay (0-5 minutes)
@@ -37,6 +36,9 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64
+
+    - name: Setup Config
+      run: cp config.github.json src/config.jsonc
 
     - name: Setup Accounts from Secret
       env:
@@ -77,9 +79,9 @@ jobs:
     - name: Start Bot with Xvfb
       env:
         TZ: 'America/New_York'
-        FORCE_HEADLESS: '0' # Use xvfb instead of headless
-        ACCOUNT_DELAY_MIN: '60000'  # 1 minute min delay between accounts
-        ACCOUNT_DELAY_MAX: '180000' # 3 minutes max delay between accounts
+        FORCE_HEADLESS: '0'
+        ACCOUNT_DELAY_MIN: '60000'
+        ACCOUNT_DELAY_MAX: '180000'
       run: |
         xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm start
 
