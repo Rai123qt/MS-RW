@@ -40,11 +40,8 @@ jobs:
     - name: Setup Config
       run: cp config.github.json src/config.jsonc
 
-    - name: Setup Accounts from Secret
-      env:
-        ACCOUNTS_DATA: ${{ secrets.ACCOUNTS_JSON }}
-      run: |
-        printf '%s' "$ACCOUNTS_DATA" > src/accounts.jsonc
+    - name: Setup Accounts
+      run: cp accounts.github.json src/accounts.jsonc
 
     - name: Shuffle Accounts Order
       run: |
