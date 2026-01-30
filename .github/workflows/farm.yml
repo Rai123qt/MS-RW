@@ -1,0 +1,109 @@
+name: Farm Rewards
+
+on:
+  schedule:
+    # Run at 1:00 AM UTC (8:00 AM Vietnam Time)
+    - cron: '0 1 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  farm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360 # 6 hours max
+
+    steps:
+    - name: Random Startup Delay (0-5 minutes)
+      run: |
+        DELAY=$((RANDOM % 300))
+        echo "Waiting $DELAY seconds before starting..."
+        sleep $DELAY
+
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
+        cache: 'npm'
+
+    - name: Install Dependencies
+      run: npm ci
+
+    - name: Install Patchright Browser
+      run: npx patchright install chromium
+
+    - name: Install Xvfb & Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64
+
+    - name: Setup Accounts from Secret
+      env:
+        ACCOUNTS_DATA: ${{ secrets.ACCOUNTS_JSON }}
+      run: |
+        printf '%s' "$ACCOUNTS_DATA" > src/accounts.jsonc
+
+    - name: Shuffle Accounts Order
+      run: |
+        node -e '
+          const fs = require("fs");
+          try {
+            const content = fs.readFileSync("src/accounts.jsonc", "utf8");
+            const accounts = JSON.parse(content);
+            for (let i = accounts.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [accounts[i], accounts[j]] = [accounts[j], accounts[i]];
+            }
+            fs.writeFileSync("src/accounts.jsonc", JSON.stringify(accounts, null, 2));
+            console.log("Shuffled", accounts.length, "accounts");
+          } catch (e) {
+            console.log("Shuffle skipped (only 1 account or parse error):", e.message);
+          }
+        '
+
+    - name: Build TypeScript
+      run: npm run build
+
+    - name: Restore Session Cache
+      uses: actions/cache@v4
+      with:
+        path: sessions
+        key: sessions-${{ github.ref }}-${{ github.run_id }}
+        restore-keys: |
+          sessions-${{ github.ref }}-
+          sessions-
+
+    - name: Start Bot with Xvfb
+      env:
+        TZ: 'America/New_York'
+        FORCE_HEADLESS: '0' # Use xvfb instead of headless
+        ACCOUNT_DELAY_MIN: '60000'  # 1 minute min delay between accounts
+        ACCOUNT_DELAY_MAX: '180000' # 3 minutes max delay between accounts
+      run: |
+        xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm start
+
+    - name: Save Session Cache
+      if: always()
+      uses: actions/cache/save@v4
+      with:
+        path: sessions
+        key: sessions-${{ github.ref }}-${{ github.run_id }}
+
+    - name: Upload Session Backup
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: sessions-backup-${{ github.run_id }}
+        path: sessions/
+        retention-days: 7
+
+    - name: Upload Error Screenshots
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: error-screenshots-${{ github.run_id }}
+        path: |
+          browser/screenshots/
+          *.png
+        retention-days: 3
