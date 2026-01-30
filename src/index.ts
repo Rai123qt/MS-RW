@@ -690,6 +690,16 @@ export class MicrosoftRewardsBot {
             }
 
             await log('main', 'MAIN-WORKER', `Completed tasks for account ${account.email}`, 'log', 'green')
+
+            // Random delay between accounts to avoid detection patterns
+            const isLastAccount = accounts.indexOf(account) === accounts.length - 1
+            if (!isLastAccount) {
+                const minDelay = parseInt(process.env.ACCOUNT_DELAY_MIN || '60000', 10)  // Default 1 min
+                const maxDelay = parseInt(process.env.ACCOUNT_DELAY_MAX || '180000', 10) // Default 3 min
+                const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay
+                log('main', 'HUMANIZATION', `Waiting ${Math.round(delay / 1000)}s before next account...`, 'log', 'cyan')
+                await this.utils.wait(delay)
+            }
         }
 
         await log(this.isMobile, 'MAIN-PRIMARY', 'Completed tasks for ALL accounts', 'log', 'green')
