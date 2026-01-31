@@ -425,8 +425,24 @@ export class Login {
         u.hostname === "login.live.com" &&
         u.pathname === "/oauth20_desktop.srf"
       ) {
+        // Fix: Handle cases where page shows error but code is in URL
         code = u.searchParams.get("code") || "";
+        const error = u.searchParams.get("error");
+
         if (code) break;
+
+        if (error || u.searchParams.has("removed")) {
+          this.bot.log(this.bot.isMobile, "LOGIN-APP", "Detected broken redirect page", "warn");
+          // If we have code despite error, use it. If not, we might be stuck.
+          if (!code) {
+            // Try to see if code is in the raw URL string just in case
+            const match = page.url().match(/code=([^&]+)/);
+            if (match && match[1]) {
+              code = match[1];
+              break;
+            }
+          }
+        }
       }
 
       if (checkCount % 3 === 0) {
