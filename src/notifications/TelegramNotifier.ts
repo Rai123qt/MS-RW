@@ -94,6 +94,40 @@ export class TelegramNotifier {
         }
     }
 
+    async sendStartNotification(accountCount: number, passCount: number): Promise<void> {
+        if (!this.enabled) return
+
+        const date = new Date().toLocaleDateString('vi-VN', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            timeZone: 'Asia/Ho_Chi_Minh'
+        })
+        const time = new Date().toLocaleTimeString('vi-VN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            timeZone: 'Asia/Ho_Chi_Minh'
+        })
+
+        const message = `🚀 <b>MS Rewards Bot - Bắt đầu</b>
+━━━━━━━━━━━━━━━━━━━━━━━
+📅 ${date} | ⏰ ${time}
+👥 Accounts: ${accountCount}
+🔄 Passes: ${passCount}
+━━━━━━━━━━━━━━━━━━━━━━━
+⏳ Đang farm...`
+
+        try {
+            await axios.post(this.apiUrl, {
+                chat_id: this.chatId,
+                text: message,
+                parse_mode: 'HTML'
+            })
+        } catch (error) {
+            console.error('[TELEGRAM] Failed to send start message:', error instanceof Error ? error.message : error)
+        }
+    }
+
     async sendTestMessage(): Promise<boolean> {
         if (!this.enabled) return false
 

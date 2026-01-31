@@ -27,6 +27,7 @@ import { Workers } from './functions/Workers'
 
 import { DesktopFlow } from './flows/DesktopFlow'
 import { MobileFlow } from './flows/MobileFlow'
+import { TelegramNotifier } from './notifications/TelegramNotifier'
 import { SummaryReporter, type AccountResult } from './flows/SummaryReporter'
 
 import { InternalScheduler } from './scheduler/InternalScheduler'
@@ -241,6 +242,9 @@ export class MicrosoftRewardsBot {
         this.printBanner()
         log('main', 'MAIN', `Bot started with ${this.config.clusters} worker(s) (1 bot, ${this.config.clusters} parallel browser${this.config.clusters > 1 ? 's' : ''})`)
 
+        // Send Telegram start notification
+        await this.sendTelegramStartNotification()
+
         // Only cluster when there's more than 1 cluster demanded
         if (this.config.clusters > 1) {
             if (cluster.isPrimary) {
@@ -296,6 +300,20 @@ export class MicrosoftRewardsBot {
         console.log('')
         console.log(chalk.cyan('  ================================================'))
         console.log('')
+    }
+
+    private async sendTelegramStartNotification(): Promise<void> {
+        const telegramConfig = (this.config as { telegram?: { enabled: boolean; botToken: string; chatId: string } }).telegram
+        if (!telegramConfig?.enabled) return
+
+        try {
+            const notifier = new TelegramNotifier(telegramConfig)
+            const passes = this.config.passesPerRun ?? 1
+            await notifier.sendStartNotification(this.accounts.length, passes)
+            log('main', 'MAIN', '✓ Telegram start notification sent')
+        } catch (error) {
+            log('main', 'MAIN', `Failed to send Telegram start notification: ${error instanceof Error ? error.message : String(error)}`, 'warn')
+        }
     }
 
     private getVersion(): string {
