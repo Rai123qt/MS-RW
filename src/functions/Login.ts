@@ -440,6 +440,9 @@ export class Login {
             if (match && match[1]) {
               code = match[1];
               break;
+            } else {
+              this.bot.log(this.bot.isMobile, "LOGIN-APP", "Critical: Broken redirect page and NO code found - Aborting OAuth", "error");
+              throw new Error("Mobile OAuth failed: Broken redirect page");
             }
           }
         }
