@@ -2,11 +2,20 @@ name: Farm Rewards
 
 on:
   schedule:
-    # Primary: 9:00 AM Vietnam (2:00 AM UTC)
-    - cron: '0 2 * * *'
-    # Backup: 4:00 PM Vietnam (9:00 AM UTC) - in case morning run fails
+    # Chạy 1 lần/ngày lúc 16:00 AM Vietnam (9:00 AM UTC)
     - cron: '0 9 * * *'
   workflow_dispatch:
+    inputs:
+      account_filter:
+        description: 'Chạy account cụ thể (để trống = tất cả)'
+        required: false
+        default: ''
+        type: string
+      skip_delay:
+        description: 'Bỏ qua random delay khi bắt đầu'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   farm:
@@ -15,6 +24,7 @@ jobs:
 
     steps:
     - name: Random Startup Delay (0-5 minutes)
+      if: ${{ github.event.inputs.skip_delay != 'true' }}
       run: |
         DELAY=$((RANDOM % 300))
         echo "Waiting $DELAY seconds before starting..."
@@ -46,21 +56,40 @@ jobs:
     - name: Setup Accounts
       run: cp accounts.github.json src/accounts.jsonc
 
-    - name: Shuffle Accounts Order
+    - name: Filter & Shuffle Accounts
+      env:
+        ACCOUNT_FILTER: ${{ github.event.inputs.account_filter }}
       run: |
         node -e '
           const fs = require("fs");
           try {
             const content = fs.readFileSync("src/accounts.jsonc", "utf8");
-            const accounts = JSON.parse(content);
+            let accounts = JSON.parse(content);
+            
+            // Filter by email if specified
+            const filter = process.env.ACCOUNT_FILTER;
+            if (filter && filter.trim() !== "") {
+              const originalCount = accounts.length;
+              accounts = accounts.filter(acc => 
+                acc.email.toLowerCase().includes(filter.toLowerCase())
+              );
+              console.log(`Filtered: ${accounts.length}/${originalCount} accounts match "${filter}"`);
+              if (accounts.length === 0) {
+                throw new Error(`No accounts match filter: ${filter}`);
+              }
+            }
+            
+            // Shuffle
             for (let i = accounts.length - 1; i > 0; i--) {
               const j = Math.floor(Math.random() * (i + 1));
               [accounts[i], accounts[j]] = [accounts[j], accounts[i]];
             }
+            
             fs.writeFileSync("src/accounts.jsonc", JSON.stringify(accounts, null, 2));
-            console.log("Shuffled", accounts.length, "accounts");
+            console.log("Running", accounts.length, "account(s):", accounts.map(a => a.email).join(", "));
           } catch (e) {
-            console.log("Shuffle skipped (only 1 account or parse error):", e.message);
+            console.error("Error:", e.message);
+            process.exit(1);
           }
         '
 
