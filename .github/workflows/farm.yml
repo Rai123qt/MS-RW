@@ -2,7 +2,10 @@ name: Farm Rewards
 
 on:
   schedule:
-    - cron: '0 1 * * *'
+    # Primary: 9:00 AM Vietnam (2:00 AM UTC)
+    - cron: '0 2 * * *'
+    # Backup: 4:00 PM Vietnam (9:00 AM UTC) - in case morning run fails
+    - cron: '0 9 * * *'
   workflow_dispatch:
 
 jobs:
