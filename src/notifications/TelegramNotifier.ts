@@ -1,15 +1,5 @@
 import axios from 'axios'
-
-export interface AccountResult {
-    email: string
-    desktopPoints: { earned: number; max: number }
-    mobilePoints: { earned: number; max: number }
-    dailySetPoints: { earned: number; max: number }
-    morePromosPoints: { earned: number; max: number }
-    totalPoints: number
-    success: boolean
-    error?: string
-}
+import type { SummaryData } from '../flows/SummaryReporter'
 
 export interface TelegramConfig {
     enabled: boolean
@@ -34,15 +24,7 @@ export class TelegramNotifier {
         return `${earned}/${max} ⚠️`
     }
 
-    private maskEmail(email: string): string {
-        const parts = email.split('@')
-        const user = parts[0] || ''
-        const domain = parts[1] || ''
-        if (user.length <= 4) return email
-        return `${user.substring(0, 3)}***@${domain}`
-    }
-
-    async sendSummary(results: AccountResult[], durationMs: number): Promise<void> {
+    async sendSummary(summary: SummaryData): Promise<void> {
         if (!this.enabled) return
 
         const date = new Date().toLocaleDateString('vi-VN', {
@@ -52,51 +34,52 @@ export class TelegramNotifier {
             timeZone: 'Asia/Ho_Chi_Minh'
         })
 
+        const durationMs = summary.endTime.getTime() - summary.startTime.getTime()
+        const durationMin = Math.round(durationMs / 60000)
+
         let message = `📊 <b>MS Rewards - ${date}</b>\n`
-        message += `━━━━━━━━━━━━━━━━━━━━━━━\n\n`
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`
 
         let totalAllPoints = 0
-        let successCount = 0
         const issues: string[] = []
 
-        for (const result of results) {
-            const email = this.maskEmail(result.email)
+        for (const account of summary.accounts) {
+            const hasFailure = Boolean(account.errors?.length) || account.banned === true
 
-            if (result.success) {
-                successCount++
-                message += `👤 <b>${email}</b>\n`
-                message += `   🖥️ Desktop: ${this.formatStatus(result.desktopPoints.earned, result.desktopPoints.max)}\n`
-                message += `   📱 Mobile: ${this.formatStatus(result.mobilePoints.earned, result.mobilePoints.max)}\n`
-                message += `   📋 Daily Set: ${this.formatStatus(result.dailySetPoints.earned, result.dailySetPoints.max)}\n`
-                message += `   🎯 Promos: ${this.formatStatus(result.morePromosPoints.earned, result.morePromosPoints.max)}\n`
-                message += `   💰 <b>Total: ${result.totalPoints} pts</b>\n\n`
+            if (!hasFailure) {
+                const desktopMax = 90 // Typical desktop max
+                const mobileMax = 60  // Typical mobile max
 
-                totalAllPoints += result.totalPoints
+                message += `👤 <b>${account.email}</b>\n`
+                message += `🖥️ ${this.formatStatus(account.desktopPoints, desktopMax)} | `
+                message += `📱 ${this.formatStatus(account.mobilePoints, mobileMax)}\n`
+                message += `💰 <b>Total: ${account.pointsEarned} pts</b> | Balance: ${account.finalPoints}\n\n`
+
+                totalAllPoints += account.pointsEarned
 
                 // Track issues
-                if (result.desktopPoints.earned < result.desktopPoints.max) {
-                    issues.push(`${email}: Desktop thiếu ${result.desktopPoints.max - result.desktopPoints.earned}`)
+                if (account.desktopPoints < desktopMax) {
+                    issues.push(`${account.email}: 🖥️ thiếu ${desktopMax - account.desktopPoints}`)
                 }
-                if (result.mobilePoints.earned < result.mobilePoints.max) {
-                    issues.push(`${email}: Mobile thiếu ${result.mobilePoints.max - result.mobilePoints.earned}`)
+                if (account.mobilePoints < mobileMax) {
+                    issues.push(`${account.email}: 📱 thiếu ${mobileMax - account.mobilePoints}`)
                 }
             } else {
-                message += `👤 <b>${email}</b>\n`
-                message += `   ❌ <i>Failed: ${result.error || 'Unknown error'}</i>\n\n`
-                issues.push(`${email}: Failed`)
+                message += `👤 <b>${account.email}</b>\n`
+                const status = account.banned ? '🚫 BANNED' : '❌ FAILED'
+                message += `${status}: ${account.errors?.[0] || 'Unknown error'}\n\n`
+                issues.push(`${account.email}: ${status}`)
             }
         }
 
-        const durationMin = Math.round(durationMs / 60000)
-        message += `━━━━━━━━━━━━━━━━━━━━━━━\n`
-        message += `📈 <b>TỔNG: ${totalAllPoints} pts</b>\n`
-        message += `✅ Success: ${successCount}/${results.length}\n`
-        message += `⏱️ Duration: ${durationMin} min\n`
+        message += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`
+        message += `📈 <b>TỔNG: ${summary.totalPoints} pts</b>\n`
+        message += `✅ ${summary.successCount}/${summary.accounts.length} | ⏱️ ${durationMin} min\n`
 
         if (issues.length > 0) {
             message += `\n⚠️ <b>Issues:</b>\n`
-            issues.forEach(issue => {
-                message += `   • ${issue}\n`
+            issues.slice(0, 10).forEach(issue => {
+                message += `• ${issue}\n`
             })
         }
 

@@ -18,6 +18,7 @@ import { Ntfy } from '../util/notifications/Ntfy'
 import { AccountHistory, AccountHistoryEntry } from '../util/state/AccountHistory'
 import { getActivityStatsTracker, resetActivityStatsTracker } from '../util/state/ActivityStatsTracker'
 import { JobState } from '../util/state/JobState'
+import { TelegramNotifier } from '../notifications/TelegramNotifier'
 
 export interface AccountResult {
     email: string
@@ -200,6 +201,24 @@ export class SummaryReporter {
     }
 
     /**
+     * Send Telegram notification
+     */
+    async sendTelegramNotification(summary: SummaryData): Promise<void> {
+        const telegramConfig = (this.config as { telegram?: { enabled: boolean; botToken: string; chatId: string } }).telegram
+        if (!telegramConfig?.enabled) {
+            return
+        }
+
+        try {
+            const notifier = new TelegramNotifier(telegramConfig)
+            await notifier.sendSummary(summary)
+            log('main', 'SUMMARY', '✓ Telegram notification sent')
+        } catch (error) {
+            log('main', 'SUMMARY', `Failed to send Telegram notification: ${error instanceof Error ? error.message : String(error)}`, 'error')
+        }
+    }
+
+    /**
      * Update job state with completion status
      */
     async updateJobState(summary: SummaryData): Promise<void> {
@@ -274,6 +293,7 @@ export class SummaryReporter {
         await Promise.all([
             this.sendWebhookSummary(summary),
             this.sendPushNotification(summary),
+            this.sendTelegramNotification(summary),
             this.updateJobState(summary)
         ])
 
