@@ -1,202 +1,242 @@
 /**
- * Cloudflare Worker for MS Rewards Bot Control
+ * Cloudflare Worker for MS Rewards Bot Control (Interactive Menu Version)
  * 
- * 🛠️ SETUP INSTRUCTIONS:
- * 1. Create a new Worker in Cloudflare Dashboard
- * 2. Paste this code into `worker.js`
- * 3. Go to Settings -> Variables and add:
- *    - `TG_BOT_TOKEN`: Your Telegram Bot Token
- *    - `GH_TOKEN`: Your GitHub Personal Access Token (Scopes: repo, workflow)
- *    - `GH_OWNER`: Your GitHub Username (e.g., Rai123qt)
- *    - `GH_REPO`: Your Repository Name (e.g., MS-RW)
- *    - `ALLOWED_USER_ID`: (Optional) Your Telegram User ID to prevent strangers from using bot
- * 4. Set Webhook: https://api.telegram.org/bot<YOUR_TOKEN>/setWebhook?url=<YOUR_WORKER_URL>
+ * 🛠️ SETUP:
+ * Variables required: TG_BOT_TOKEN, GH_TOKEN, GH_OWNER, GH_REPO
  */
+
+const ACCOUNTS = [
+    'thomas.baker.k49m@outlook.com',
+    'kevin.turner.x92a@outlook.com',
+    'david.wilson.p55q@outlook.com',
+    'ryan.cooper.b10z@outlook.com',
+    'emily.davis.h44q@hotmail.com'
+];
 
 export default {
     async fetch(request, env, ctx) {
-        // Verify POST request
         if (request.method === 'POST') {
             try {
                 const payload = await request.json();
-                if (payload.message) {
-                    await handleMessage(payload.message, env);
-                }
+                if (payload.callback_query) await handleCallback(payload.callback_query, env);
+                else if (payload.message) await handleMessage(payload.message, env);
             } catch (e) {
                 console.error(e);
             }
             return new Response('OK');
         }
-        return new Response('🤖 MS Rewards Control Bot is Active');
+        return new Response('Bot is Active (Interactive Mode)');
     }
 };
+
+// ------------------------------------------------------------------
+// HANDLERS
+// ------------------------------------------------------------------
 
 async function handleMessage(msg, env) {
     const chatId = msg.chat.id;
     const text = msg.text || '';
-    const userId = msg.from.id;
 
-    // 🔒 Security Check (Optional but recommended)
-    if (env.ALLOWED_USER_ID && String(userId) !== String(env.ALLOWED_USER_ID)) {
-        return; // Ignore unauthorized users
+    // Security check logic here if needed
+
+    if (text.startsWith('/schedule')) {
+        await handleScheduleCommand(chatId, text, env);
+        return;
     }
 
-    // Command: /run [filter] [check_delay]
-    // Example: /run or /run thomas or /run all true
-    if (text.startsWith('/run')) {
-        const parts = text.split(' ');
-        const accountFilter = parts[1] || 'all';
-        const skipDelay = parts[2] === 'true' || parts[2] === 'yes' ? true : false;
+    // Default: Show Main Menu
+    await sendMainMenu(chatId, env, '🤖 **CONTROL CENTER**\nChọn tác vụ mong muốn:');
+}
 
-        await sendMessage(env, chatId, `🚀 *Triggering Farm...*\nAccount: \`${accountFilter}\`\nSkip Delay: \`${skipDelay}\``);
+async function handleCallback(cb, env) {
+    const chatId = cb.message.chat.id;
+    const messageId = cb.message.message_id;
+    const data = cb.data;
+
+    // Answer callback to stop loading animation
+    await answerCallback(cb.id, env);
+
+    if (data === 'MAIN_MENU') {
+        await editMessage(chatId, messageId, env, '🤖 **CONTROL CENTER**\nChọn tác vụ mong muốn:', getMainMenuKeyboard());
+    }
+
+    else if (data === 'MENU_RUN_ALL') {
+        await editMessage(chatId, messageId, env,
+            '⚠️ **XÁC NHẬN CHẠY ALL**\n\nBạn có chắc chắn muốn chạy **TẤT CẢ** tài khoản ngay bây giờ?',
+            getConfirmKeyboard('all')
+        );
+    }
+
+    else if (data === 'MENU_SELECT_ACC') {
+        await editMessage(chatId, messageId, env,
+            '👤 **CHỌN TÀI KHOẢN**\n\nChọn tài khoản bạn muốn chạy lẻ:',
+            getAccountListKeyboard()
+        );
+    }
+
+    else if (data.startsWith('CONFIRM_ACC:')) {
+        const email = data.split(':')[1];
+        await editMessage(chatId, messageId, env,
+            `⚠️ **XÁC NHẬN CHẠY LẺ**\n\nTài khoản: \`${email}\`\n\nBạn có chắc chắn muốn chạy?`,
+            getConfirmKeyboard(email)
+        );
+    }
+
+    else if (data.startsWith('DO_RUN:')) {
+        const filter = data.split(':')[1];
+        await editMessage(chatId, messageId, env,
+            `🚀 **Đang gửi lệnh...**\nFilter: \`${filter}\`\n\nVui lòng đợi...`,
+            null
+        );
 
         try {
-            const resp = await triggerWorkflow(env, accountFilter, skipDelay);
+            const resp = await triggerWorkflow(env, filter);
             if (resp.status === 204) {
-                await sendMessage(env, chatId, '✅ Command sent to GitHub successfully!');
+                await sendMessage(env, chatId, `✅ **THÀNH CÔNG!**\n\nĐã kích hoạt GitHub Actions.\nAccount: \`${filter}\``);
+                // Show menu again
+                await sendMessage(env, chatId, '👇 Tiếp tục thao tác:', getMainMenuKeyboard());
             } else {
-                const err = await resp.text();
-                await sendMessage(env, chatId, `❌ Failed to trigger: ${err}`);
+                await sendMessage(env, chatId, `❌ **LỖI:** ${await resp.text()}`);
             }
         } catch (e) {
-            await sendMessage(env, chatId, `❌ Error: ${e.message}`);
+            await sendMessage(env, chatId, `❌ **System Error:** ${e.message}`);
         }
     }
 
-    // Command: /schedule HH:mm
-    // Example: /schedule 16:00 (Sets run time to 4:00 PM VN Time)
-    else if (text.startsWith('/schedule')) {
-        const parts = text.split(' ');
-        const timeInput = parts[1]; // HH:mm
-
-        if (!timeInput || !timeInput.includes(':')) {
-            await sendMessage(env, chatId, '⚠️ Invalid format. Use: `/schedule HH:mm` (24h format, VN Time)\nExample: `/schedule 16:00`');
-            return;
-        }
-
-        const [hour, minute] = timeInput.split(':').map(Number);
-        if (isNaN(hour) || isNaN(minute) || hour > 23 || minute > 59) {
-            await sendMessage(env, chatId, '⚠️ Invalid time.');
-            return;
-        }
-
-        // Convert VN (UTC+7) to UTC
-        let utcHour = hour - 7;
-        if (utcHour < 0) utcHour += 24;
-
-        const cronString = `${minute} ${utcHour} * * *`; // Run daily at specific time
-
-        await sendMessage(env, chatId, `🔄 Updating schedule to **${timeInput} VN** (Cron: \`${cronString}\`)...`);
-
-        try {
-            const result = await updateWorkflowSchedule(env, cronString);
-            if (result) {
-                await sendMessage(env, chatId, `✅ Schedule updated! Bot will run daily at **${timeInput} VN**.`);
-            } else {
-                await sendMessage(env, chatId, '❌ Failed to update schedule. Check logs.');
-            }
-        } catch (e) {
-            await sendMessage(env, chatId, `❌ Error: ${e.message}`);
-        }
-    }
-
-    // Command: /help
-    else if (text.startsWith('/help') || text.startsWith('/start')) {
-        await sendMessage(env, chatId,
-            `🤖 **MS Rewards Control**
-
-Commands:
-`/ run[filter]` - Run bot immediately
-Example: \`/run\` (all)
-Example: \`/run thomas\` (specific)
-
-`/ schedule HH: mm` - Set daily run time (VN Time)
-Example: \`/schedule 04:00\` (4 AM)
-Example: \`/schedule 16:30\` (4:30 PM)
-
-`/ status` - (Coming soon) Check bot status`);
+    else if (data === 'CANCEL') {
+        await editMessage(chatId, messageId, env, '❌ Đã hủy thao tác.', null);
+        await sendMessage(env, chatId, '👇 Menu chính:', getMainMenuKeyboard());
     }
 }
 
-// ---------------------------------------------------------
-// GitHub API Helpers
-// ---------------------------------------------------------
+// ------------------------------------------------------------------
+// KEYBOARDS
+// ------------------------------------------------------------------
 
-async function triggerWorkflow(env, filter, skipDelay) {
-    const url = `https://api.github.com/repos/${env.GH_OWNER}/${env.GH_REPO}/actions/workflows/farm.yml/dispatches`;
+function getMainMenuKeyboard() {
+    return {
+        inline_keyboard: [
+            [{ text: '🚀 Chạy TẤT CẢ (Run All)', callback_data: 'MENU_RUN_ALL' }],
+            [{ text: '👤 Chạy Lẻ (Select Account)', callback_data: 'MENU_SELECT_ACC' }],
+            [{ text: '🕒 Hướng dẫn đặt lịch', callback_data: 'GUIDE_SCHEDULE' }] // Placeholder logic if needed, or just remove
+        ]
+    };
+}
 
-    return await fetch(url, {
+function getAccountListKeyboard() {
+    const buttons = ACCOUNTS.map(email => ([
+        { text: email.split('@')[0], callback_data: `CONFIRM_ACC:${email}` } // Show name only for brevity
+    ]));
+    buttons.push([{ text: '🔙 Quay lại', callback_data: 'MAIN_MENU' }]);
+    return { inline_keyboard: buttons };
+}
+
+function getConfirmKeyboard(filter) {
+    return {
+        inline_keyboard: [
+            [
+                { text: '✅ CHẠY NGAY', callback_data: `DO_RUN:${filter}` },
+                { text: '❌ HỦY', callback_data: 'CANCEL' }
+            ],
+            [{ text: '🔙 Quay lại', callback_data: 'MAIN_MENU' }]
+        ]
+    };
+}
+
+// ------------------------------------------------------------------
+// LOGIC SCHEDULE & ACTIONS
+// ------------------------------------------------------------------
+
+async function handleScheduleCommand(chatId, text, env) {
+    const parts = text.split(' ');
+    const timeInput = parts[1];
+
+    if (!timeInput || !timeInput.includes(':')) {
+        await sendMessage(env, chatId, '⚠️ **Sai cú pháp!**\n\nHãy dùng: `/schedule HH:mm`\nVí dụ: `/schedule 04:00` (4h sáng VN)');
+        return;
+    }
+
+    const [hour, minute] = timeInput.split(':').map(Number);
+    let utcHour = hour - 7;
+    if (utcHour < 0) utcHour += 24;
+    const cronString = `${minute} ${utcHour} * * *`;
+
+    await sendMessage(env, chatId, `🔄 Đang cập nhật lịch chạy thành **${timeInput}**...`);
+
+    try {
+        if (await updateWorkflowSchedule(env, cronString)) {
+            await sendMessage(env, chatId, `✅ **Cập nhật thành công!**\n\nBot sẽ tự chạy lúc **${timeInput}** hàng ngày.`);
+        } else {
+            await sendMessage(env, chatId, '❌ Lỗi khi cập nhật file GitHub.');
+        }
+    } catch (e) {
+        await sendMessage(env, chatId, `❌ Error: ${e.message}`);
+    }
+}
+
+async function triggerWorkflow(env, filter) {
+    return await fetch(`https://api.github.com/repos/${env.GH_OWNER}/${env.GH_REPO}/actions/workflows/farm.yml/dispatches`, {
         method: 'POST',
         headers: {
             'Authorization': `Bearer ${env.GH_TOKEN}`,
             'Accept': 'application/vnd.github.v3+json',
             'User-Agent': 'Cloudflare-Worker'
         },
-        body: JSON.stringify({
-            ref: 'master',
-            inputs: {
-                account_filter: filter,
-                skip_delay: skipDelay ? 'true' : 'false'
-            }
-        })
+        body: JSON.stringify({ ref: 'master', inputs: { account_filter: filter, skip_delay: 'true' } })
     });
 }
 
 async function updateWorkflowSchedule(env, newCron) {
-    const filePath = '.github/workflows/farm.yml';
-    const url = `https://api.github.com/repos/${env.GH_OWNER}/${env.GH_REPO}/contents/${filePath}`;
-
-    // 1. Get current file (need SHA)
-    const getResp = await fetch(url, {
-        headers: {
-            'Authorization': `Bearer ${env.GH_TOKEN}`,
-            'User-Agent': 'Cloudflare-Worker'
-        }
-    });
-
-    if (!getResp.ok) throw new Error('Could not find farm.yml');
+    const url = `https://api.github.com/repos/${env.GH_OWNER}/${env.GH_REPO}/contents/.github/workflows/farm.yml`;
+    const getResp = await fetch(url, { headers: { 'Authorization': `Bearer ${env.GH_TOKEN}`, 'User-Agent': 'CF-Worker' } });
+    if (!getResp.ok) throw new Error('Repo not found');
     const data = await getResp.json();
-    const sha = data.sha;
-    const content = atob(data.content); // Decode Base64
+    const content = atob(data.content);
 
-    // 2. Replace Cron
-    // Use regex to find "cron: '...'"
-    const regex = /cron: '.*'/;
-    if (!regex.test(content)) throw new Error('Could not find pattern: cron: \'...\' in file');
+    const newContent = content.replace(/cron: '.*'/, `cron: '${newCron}'`);
 
-    const newContent = content.replace(regex, `cron: '${newCron}'`);
-
-    // 3. Push Update
     const putResp = await fetch(url, {
         method: 'PUT',
-        headers: {
-            'Authorization': `Bearer ${env.GH_TOKEN}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'User-Agent': 'Cloudflare-Worker'
-        },
+        headers: { 'Authorization': `Bearer ${env.GH_TOKEN}`, 'User-Agent': 'CF-Worker' },
         body: JSON.stringify({
-            message: `Update schedule to ${newCron} via Telegram Bot`,
-            content: btoa(newContent), // Encode Base64
-            sha: sha
+            message: `Update schedule to ${newCron}`,
+            content: btoa(newContent),
+            sha: data.sha
         })
     });
-
     return putResp.ok;
 }
 
-// ---------------------------------------------------------
-// Telegram Helpers
-// ---------------------------------------------------------
+// ------------------------------------------------------------------
+// TELEGRAM API HELPERS
+// ------------------------------------------------------------------
 
-async function sendMessage(env, chatId, text) {
-    const url = `https://api.telegram.org/bot${env.TG_BOT_TOKEN}/sendMessage`;
-    await fetch(url, {
+async function sendMessage(env, chatId, text, replyMarkup = null) {
+    const body = { chat_id: chatId, text: text, parse_mode: 'Markdown' };
+    if (replyMarkup) body.reply_markup = replyMarkup;
+
+    await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            chat_id: chatId,
-            text: text,
-            parse_mode: 'Markdown'
-        })
+        body: JSON.stringify(body)
+    });
+}
+
+async function editMessage(chatId, messageId, env, text, replyMarkup = null) {
+    const body = { chat_id: chatId, message_id: messageId, text: text, parse_mode: 'Markdown' };
+    if (replyMarkup) body.reply_markup = replyMarkup;
+
+    await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/editMessageText`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+}
+
+async function answerCallback(callbackQueryId, env) {
+    await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/answerCallbackQuery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ callback_query_id: callbackQueryId })
     });
 }

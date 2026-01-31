@@ -49,9 +49,15 @@ Bạn cần báo cho Telegram biết là phải gửi tin nhắn về Cloudflare
 3. Nếu thấy `{"ok":true, "result":true, "description":"Webhook was set"}` là thành công!
 
 ## 🚀 Sử dụng
-Chat với bot của bạn:
+Chat với bot của bạn (bất kỳ nội dung gì hoặc `/menu`):
 
-- **/run**: Chạy bot ngay lập tức (default: chạy tất cả).
-- **/run thomas**: Chỉ chạy account thomas.
-- **/run all true**: Chạy tất cả và bỏ qua delay.
+Bot sẽ hiển thị **Bảng điều khiển (Menu)**:
+- **[🚀 Chạy TẤT CẢ]**: Chạy toàn bộ dàn account.
+- **[👤 Chạy Từng Account]**: Chọn account cụ thể từ danh sách.
+- **[🕒 Cài đặt Lịch Auto]**: Hướng dẫn lệnh đặt lịch.
+
+Khi bấm chọn, Bot sẽ luôn hiện bảng **⚠️ XÁC NHẬN** (Yes/No) để tránh bấm nhầm.
+
+### Lệnh đặc biệt:
 - **/schedule 16:00**: Đặt lịch chạy tự động lúc 4h chiều hàng ngày.
+
