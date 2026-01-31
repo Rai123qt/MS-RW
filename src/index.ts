@@ -107,6 +107,13 @@ export class MicrosoftRewardsBot {
 
         // Validation passed - continue with initialization
 
+        // Shuffle accounts for randomized order (better for security)
+        const shuffleEnabled = (this.config as { shuffleAccounts?: boolean }).shuffleAccounts !== false
+        if (shuffleEnabled) {
+            this.accounts = this.utils.shuffleArray(this.accounts)
+            log('main', 'MAIN', `Accounts shuffled - random order for each run`)
+        }
+
         // Initialize job state
         if (this.config.jobState?.enabled !== false) {
             this.accountJobState = new JobState(this.config)
