@@ -137,7 +137,10 @@ export class QueryDiversityEngine {
         break
     }
 
+    // Mutate queries to avoid exact duplicates
     if (queries.length > 0) {
+      queries = queries.map(q => this.mutateQuery(q))
+
       this.cache.set(source, {
         queries,
         expires: Date.now() + (this.config.cacheMinutes * 60000)
@@ -145,6 +148,26 @@ export class QueryDiversityEngine {
     }
 
     return queries
+  }
+
+  /**
+   * Mutate a query by adding random suffixes to ensure uniqueness
+   */
+  private mutateQuery(query: string): string {
+    // 30% chance to keep original
+    if (Math.random() > 0.7) return query
+
+    const currentYear = new Date().getFullYear()
+    const suffixes = [
+      'news', 'review', 'wiki', 'definition', 'images', 'video',
+      'reddit', 'meaning', 'guide', 'tutorial', 'best',
+      'vs', 'history', 'facts', 'summary', 'update',
+      ` ${currentYear}`, ` ${currentYear - 1}`, 'latest'
+    ]
+
+    const randomSuffix = suffixes[Math.floor(Math.random() * suffixes.length)]
+    return `${query} ${randomSuffix}`
+
   }
 
   /**

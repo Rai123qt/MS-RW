@@ -43,8 +43,8 @@
         "enabled": true,
         "sources": [
             "google-trends",
-            "bing-trends",
-            "google-trends-daily",
+            "reddit",
+            "wikipedia",
             "local-fallback"
         ],
         "maxQueriesPerSource": 15,
