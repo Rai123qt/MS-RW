@@ -1,9 +1,13 @@
 name: Farm Rewards
 
+concurrency:
+  group: farm-rewards
+  cancel-in-progress: false
+
 on:
   schedule:
     # Chạy 1 lần/ngày lúc 4:00 PM Vietnam (9:00 AM UTC)
-    - cron: '0 10 * * *'
+    - cron: '0 9 * * *'
   workflow_dispatch:
     inputs:
       account_filter:
