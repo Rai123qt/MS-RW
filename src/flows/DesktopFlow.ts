@@ -124,23 +124,13 @@ export class DesktopFlow {
             await this.bot.browser.func.goHome(workerPage)
 
             // Complete daily set
-            // Complete daily set
             if (this.bot.config.workers.doDailySet) {
-                if (browserEarnablePoints.dailySetPoints > 0) {
-                    await this.bot.workers.doDailySet(workerPage, data)
-                } else {
-                    this.bot.log(false, 'DESKTOP-FLOW', 'Skipping daily set (already completed)', 'log', 'green')
-                }
+                await this.bot.workers.doDailySet(workerPage, data)
             }
 
             // Complete more promotions
-            // Complete more promotions
             if (this.bot.config.workers.doMorePromotions) {
-                if (browserEarnablePoints.morePromotionsPoints > 0) {
-                    await this.bot.workers.doMorePromotions(workerPage, data)
-                } else {
-                    this.bot.log(false, 'DESKTOP-FLOW', 'Skipping more promotions (already completed)', 'log', 'green')
-                }
+                await this.bot.workers.doMorePromotions(workerPage, data)
             }
 
             // Complete punch cards
@@ -149,19 +139,14 @@ export class DesktopFlow {
             }
 
             // Do desktop searches
-            // Do desktop searches
             if (this.bot.config.workers.doDesktopSearch) {
-                if (browserEarnablePoints.desktopSearchPoints > 0) {
-                    try {
-                        await this.bot.activities.doSearch(workerPage, data)
-                    } catch (searchError) {
-                        const errorMsg = searchError instanceof Error ? searchError.message : String(searchError)
-                        this.bot.log(false, 'DESKTOP-FLOW', `Desktop search failed: ${errorMsg}`, 'error')
-                        // IMPROVED: Don't throw - continue with other tasks, just log the error
-                        // User will see reduced points but flow completes
-                    }
-                } else {
-                    this.bot.log(false, 'DESKTOP-FLOW', 'Skipping desktop searches (already completed)', 'log', 'green')
+                try {
+                    await this.bot.activities.doSearch(workerPage, data)
+                } catch (searchError) {
+                    const errorMsg = searchError instanceof Error ? searchError.message : String(searchError)
+                    this.bot.log(false, 'DESKTOP-FLOW', `Desktop search failed: ${errorMsg}`, 'error')
+                    // IMPROVED: Don't throw - continue with other tasks, just log the error
+                    // User will see reduced points but flow completes
                 }
             }
 
