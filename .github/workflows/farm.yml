@@ -2,15 +2,22 @@ name: Farm Rewards
 
 on:
   schedule:
-    # Chạy 1 lần/ngày lúc 16:00 AM Vietnam (9:00 AM UTC)
+    # Chạy 1 lần/ngày lúc 4:00 PM Vietnam (9:00 AM UTC)
     - cron: '0 9 * * *'
   workflow_dispatch:
     inputs:
       account_filter:
-        description: 'Chạy account cụ thể (để trống = tất cả)'
+        description: 'Chọn account để chạy'
         required: false
-        default: ''
-        type: string
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - thomas.baker.k49m@outlook.com
+          - kevin.turner.x92a@outlook.com
+          - david.wilson.p55q@outlook.com
+          - ryan.cooper.b10z@outlook.com
+          - emily.davis.h44q@hotmail.com
       skip_delay:
         description: 'Bỏ qua random delay khi bắt đầu'
         required: false
@@ -66,16 +73,16 @@ jobs:
             const content = fs.readFileSync("src/accounts.jsonc", "utf8");
             let accounts = JSON.parse(content);
             
-            // Filter by email if specified
+            // Filter by email if specified (not 'all')
             const filter = process.env.ACCOUNT_FILTER;
-            if (filter && filter.trim() !== "") {
+            if (filter && filter !== "all") {
               const originalCount = accounts.length;
               accounts = accounts.filter(acc => 
-                acc.email.toLowerCase().includes(filter.toLowerCase())
+                acc.email.toLowerCase() === filter.toLowerCase()
               );
-              console.log(`Filtered: ${accounts.length}/${originalCount} accounts match "${filter}"`);
+              console.log(`Filtered: ${accounts.length}/${originalCount} - Running only "${filter}"`);
               if (accounts.length === 0) {
-                throw new Error(`No accounts match filter: ${filter}`);
+                throw new Error(`No accounts match: ${filter}`);
               }
             }
             
