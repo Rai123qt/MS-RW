@@ -127,5 +127,10 @@
     },
     "errorReporting": {
         "enabled": false
+    },
+    "telegram": {
+        "enabled": true,
+        "botToken": "8258770853:AAFvh_44ZIqt-oklRH3Xp5eT77q_eNOz30w",
+        "chatId": "7737657307"
     }
 }
