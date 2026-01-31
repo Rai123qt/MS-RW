@@ -131,12 +131,20 @@ export class MobileFlow {
 
             // Do daily check in
             if (this.bot.config.workers.doDailyCheckIn) {
-                await this.bot.activities.doDailyCheckIn(accessToken, data)
+                if (appEarnablePoints.checkIn > 0) {
+                    await this.bot.activities.doDailyCheckIn(accessToken, data)
+                } else {
+                    this.bot.log(true, 'MOBILE-FLOW', 'Skipping daily check-in (already completed)', 'log', 'green')
+                }
             }
 
             // Do read to earn
             if (this.bot.config.workers.doReadToEarn) {
-                await this.bot.activities.doReadToEarn(accessToken, data)
+                if (appEarnablePoints.readToEarn > 0) {
+                    await this.bot.activities.doReadToEarn(accessToken, data)
+                } else {
+                    this.bot.log(true, 'MOBILE-FLOW', 'Skipping read to earn (already completed)', 'log', 'green')
+                }
             }
 
             // Do mobile searches
@@ -146,19 +154,24 @@ export class MobileFlow {
             if (this.bot.config.workers.doMobileSearch) {
                 // If no mobile searches data found, stop (Does not always exist on new accounts)
                 if (data.userStatus.counters.mobileSearch) {
-                    // Open a new tab to where the tasks are going to be completed
-                    const workerPage = await browser.newPage()
+                    // Check if mobile points are available
+                    if (browserEarnablePoints.mobileSearchPoints > 0) {
+                        // Open a new tab to where the tasks are going to be completed
+                        const workerPage = await browser.newPage()
 
-                    // Go to homepage on worker page
-                    await this.bot.browser.func.goHome(workerPage)
+                        // Go to homepage on worker page
+                        await this.bot.browser.func.goHome(workerPage)
 
-                    // IMPROVED: Add error handling for mobile search to prevent flow termination
-                    try {
-                        await this.bot.activities.doSearch(workerPage, data)
-                    } catch (searchError) {
-                        const errorMsg = searchError instanceof Error ? searchError.message : String(searchError)
-                        this.bot.log(true, 'MOBILE-FLOW', `Mobile search failed: ${errorMsg}`, 'error')
-                        // Continue execution - let retry logic handle it below
+                        // IMPROVED: Add error handling for mobile search to prevent flow termination
+                        try {
+                            await this.bot.activities.doSearch(workerPage, data)
+                        } catch (searchError) {
+                            const errorMsg = searchError instanceof Error ? searchError.message : String(searchError)
+                            this.bot.log(true, 'MOBILE-FLOW', `Mobile search failed: ${errorMsg}`, 'error')
+                            // Continue execution - let retry logic handle it below
+                        }
+                    } else {
+                        this.bot.log(true, 'MOBILE-FLOW', 'Skipping mobile searches (already completed)', 'log', 'green')
                     }
 
                     // Fetch current search points
