@@ -489,10 +489,14 @@ export class MicrosoftRewardsBot {
     }
 
     private async runTasks(accounts: Account[], currentPass: number = 1, totalPasses: number = 1) {
+        // Shuffle accounts for this pass (different order each pass)
+        const shuffledAccounts = this.utils.shuffleArray([...accounts])
+        log('main', 'TASK', `Pass ${currentPass}: Account order shuffled (${shuffledAccounts.map(a => a.email.split('@')[0]).join(' → ')})`)
+
         // Check if all accounts are already completed and prompt user
         // BUT skip this check for multi-pass runs (passes > 1) OR if not on first pass
         const accountDayKey = this.utils.getFormattedDate()
-        const allCompleted = accounts.every(acc => this.shouldSkipAccount(acc.email, accountDayKey))
+        const allCompleted = shuffledAccounts.every(acc => this.shouldSkipAccount(acc.email, accountDayKey))
 
         // Only check completion on first pass and if not doing multiple passes
         if (allCompleted && accounts.length > 0 && currentPass === 1 && totalPasses === 1) {
@@ -511,7 +515,7 @@ export class MicrosoftRewardsBot {
             this.resetAllJobStates()
         }
 
-        for (const account of accounts) {
+        for (const account of shuffledAccounts) {
             // If a global standby is active due to security/banned, stop processing further accounts
             if (this.globalStandby.active) {
                 log('main', 'SECURITY', `Global standby active (${this.globalStandby.reason || 'security-issue'}). Not proceeding to next accounts until resolved.`, 'warn', 'yellow')
@@ -717,7 +721,7 @@ export class MicrosoftRewardsBot {
             await log('main', 'MAIN-WORKER', `Completed tasks for account ${account.email}`, 'log', 'green')
 
             // Random delay between accounts to avoid detection patterns
-            const isLastAccount = accounts.indexOf(account) === accounts.length - 1
+            const isLastAccount = shuffledAccounts.indexOf(account) === shuffledAccounts.length - 1
             if (!isLastAccount) {
                 const minDelay = parseInt(process.env.ACCOUNT_DELAY_MIN || '60000', 10)  // Default 1 min
                 const maxDelay = parseInt(process.env.ACCOUNT_DELAY_MAX || '180000', 10) // Default 3 min
