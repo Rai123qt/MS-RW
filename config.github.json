@@ -5,7 +5,7 @@
     "execution": {
         "parallel": false,
         "runOnZeroPoints": false,
-        "clusters": 1,
+        "clusters": 2,
         "passesPerRun": 2
     },
     "jobState": {
