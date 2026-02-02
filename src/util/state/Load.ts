@@ -141,6 +141,7 @@ function normalizeConfig(raw: unknown): Config {
     const webhook = notifications.webhook ?? n.webhook ?? { enabled: false, url: '' }
     const conclusionWebhook = notifications.conclusionWebhook ?? n.conclusionWebhook ?? { enabled: false, url: '' }
     const ntfy = notifications.ntfy ?? n.ntfy ?? { enabled: false, url: '', topic: '', authToken: '' }
+    const telegram = notifications.telegram ?? n.telegram ?? { enabled: false, botToken: '', chatId: '' }
 
     // Fingerprinting
     const saveFingerprint = (n.fingerprinting?.saveFingerprint ?? n.saveFingerprint) ?? { mobile: false, desktop: false }
@@ -222,6 +223,7 @@ function normalizeConfig(raw: unknown): Config {
         webhook,
         conclusionWebhook,
         ntfy,
+        telegram,
         update: n.update,
         passesPerRun: passesPerRun,
         crashRecovery: n.crashRecovery || {},

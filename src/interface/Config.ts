@@ -21,6 +21,7 @@ export interface Config {
     webhook: ConfigWebhook;
     conclusionWebhook?: ConfigWebhook; // Optional secondary webhook for final summary
     ntfy: ConfigNtfy;
+    telegram?: ConfigTelegram;
     update?: ConfigUpdate;
     passesPerRun?: number;
     crashRecovery?: ConfigCrashRecovery; // Automatic restart / graceful shutdown
@@ -231,4 +232,10 @@ export interface ConfigAntiDetection {
     audioNoise?: boolean;
     /** Enable WebRTC IP leak protection (default: true) */
     webrtcProtection?: boolean;
+}
+
+export interface ConfigTelegram {
+    enabled: boolean;
+    botToken: string;
+    chatId: string;
 }

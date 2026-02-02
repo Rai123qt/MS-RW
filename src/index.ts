@@ -28,7 +28,7 @@ import { Workers } from './functions/Workers'
 import { DesktopFlow } from './flows/DesktopFlow'
 import { MobileFlow } from './flows/MobileFlow'
 import { TelegramNotifier } from './notifications/TelegramNotifier'
-import { SummaryReporter, type AccountResult } from './flows/SummaryReporter'
+import { SummaryReporter, type AccountResult, type SummaryData } from './flows/SummaryReporter'
 
 import { InternalScheduler } from './scheduler/InternalScheduler'
 
@@ -272,6 +272,8 @@ export class MicrosoftRewardsBot {
                         await this.utils.wait(TIMEOUTS.ONE_MINUTE)
                     }
                 }
+                // Send Telegram summary notification for single-process fallback
+                await this.sendTelegramSummaryNotification(this.accountSummaries)
                 return
             }
         } else {
@@ -310,16 +312,55 @@ export class MicrosoftRewardsBot {
     }
 
     private async sendTelegramStartNotification(): Promise<void> {
-        const telegramConfig = (this.config as { telegram?: { enabled: boolean; botToken: string; chatId: string } }).telegram
-        if (!telegramConfig?.enabled) return
+        if (!this.config.telegram?.enabled) return
 
         try {
-            const notifier = new TelegramNotifier(telegramConfig)
+            const notifier = new TelegramNotifier(this.config.telegram)
             const passes = this.config.passesPerRun ?? 1
             await notifier.sendStartNotification(this.accounts.length, passes)
             log('main', 'MAIN', '✓ Telegram start notification sent')
         } catch (error) {
             log('main', 'MAIN', `Failed to send Telegram start notification: ${error instanceof Error ? error.message : String(error)}`, 'warn')
+        }
+    }
+
+    private async sendTelegramSummaryNotification(accounts: AccountSummary[]): Promise<void> {
+        if (!this.config.telegram?.enabled) return
+
+        try {
+            const notifier = new TelegramNotifier(this.config.telegram)
+
+            // Map AccountSummary -> AccountResult
+            const results: AccountResult[] = accounts.map(a => ({
+                email: a.email,
+                pointsEarned: a.totalCollected,
+                runDuration: a.durationMs,
+                initialPoints: a.initialTotal,
+                finalPoints: a.endTotal,
+                desktopPoints: a.desktopCollected,
+                mobilePoints: a.mobileCollected,
+                errors: a.errors,
+                banned: a.banned?.status
+            }))
+
+            const successCount = results.filter(a => !a.errors?.length && !a.banned).length
+            const totalPoints = results.reduce((sum, acc) => sum + (acc.pointsEarned || 0), 0)
+            const failureCount = results.length - successCount
+
+            // Construct summary data
+            const summaryData: SummaryData = {
+                accounts: results,
+                totalPoints,
+                successCount,
+                failureCount,
+                startTime: new Date(Date.now() - (results.reduce((sum, a) => sum + (a.runDuration || 0), 0) / (this.config.clusters || 1))), // Estimate total duration
+                endTime: new Date()
+            }
+
+            await notifier.sendSummary(summaryData)
+            log('main', 'MAIN', '✓ Telegram summary notification sent')
+        } catch (error) {
+            log('main', 'MAIN', `Failed to send Telegram summary notification: ${error instanceof Error ? error.message : String(error)}`, 'warn')
         }
     }
 
