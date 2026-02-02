@@ -3,6 +3,7 @@ import { Page } from 'patchright'
 import { MicrosoftRewardsBot } from '../index'
 
 import { ABC } from './activities/ABC'
+import { BonusClaim } from './activities/BonusClaim'
 import { DailyCheckIn } from './activities/DailyCheckIn'
 import { Poll } from './activities/Poll'
 import { Quiz } from './activities/Quiz'
@@ -22,6 +23,7 @@ type ActivityKind =
     | { type: 'quiz' }
     | { type: 'urlReward' }
     | { type: 'searchOnBing' }
+    | { type: 'bonusClaim' }
     | { type: 'unsupported' }
 
 
@@ -91,6 +93,9 @@ export class Activities {
                 case 'urlReward':
                     await this.doUrlReward(page)
                     break
+                case 'bonusClaim':
+                    await this.doBonusClaim(page)
+                    break
                 case 'unsupported':
                     this.bot.log(this.bot.isMobile, 'ACTIVITY', `Skipped activity "${activity.title}" | Reason: Unsupported type: "${(activity as { promotionType?: string }).promotionType || 'unknown'}"`, 'warn')
                     break
@@ -115,6 +120,7 @@ export class Activities {
             case 'quiz': return 'Quiz'
             case 'searchOnBing': return 'SearchOnBing'
             case 'urlReward': return 'UrlReward'
+            case 'bonusClaim': return 'BonusClaim'
             default: return 'Unsupported'
         }
     }
@@ -137,6 +143,13 @@ export class Activities {
             if (name.includes('exploreonbing')) return { type: 'searchOnBing' }
             return { type: 'urlReward' }
         }
+
+        // Detect Bonus Claim (keyword based)
+        const title = (activity.title || '').toLowerCase()
+        if (title.includes('claim') || title.includes('bonus points')) {
+            return { type: 'bonusClaim' }
+        }
+
         return { type: 'unsupported' }
     }
 
@@ -168,6 +181,11 @@ export class Activities {
     doUrlReward = async (page: Page): Promise<void> => {
         const urlReward = new UrlReward(this.bot)
         await urlReward.doUrlReward(page)
+    }
+
+    doBonusClaim = async (page: Page): Promise<void> => {
+        const bonusClaim = new BonusClaim(this.bot)
+        await bonusClaim.doBonusClaim(page)
     }
 
     doSearchOnBing = async (page: Page, activity: MorePromotion | PromotionalItem): Promise<void> => {
