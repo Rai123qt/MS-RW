@@ -7,7 +7,7 @@ concurrency:
 on:
   schedule:
     # Chạy 1 lần/ngày lúc 4:00 PM Vietnam (9:00 AM UTC)
-    - cron: '30 NaN * * *'
+    - cron: '30 8 * * *'
   workflow_dispatch:
     inputs:
       account_filter:
