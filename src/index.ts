@@ -249,8 +249,10 @@ export class MicrosoftRewardsBot {
         this.printBanner()
         log('main', 'MAIN', `Bot started with ${this.config.clusters} worker(s) (1 bot, ${this.config.clusters} parallel browser${this.config.clusters > 1 ? 's' : ''})`)
 
-        // Send Telegram start notification
-        await this.sendTelegramStartNotification()
+        // Send Telegram start notification (Master only)
+        if (cluster.isPrimary) {
+            await this.sendTelegramStartNotification()
+        }
 
         // Only cluster when there's more than 1 cluster demanded
         if (this.config.clusters > 1) {
@@ -330,18 +332,37 @@ export class MicrosoftRewardsBot {
         try {
             const notifier = new TelegramNotifier(this.config.telegram)
 
-            // Map AccountSummary -> AccountResult
-            const results: AccountResult[] = accounts.map(a => ({
-                email: a.email,
-                pointsEarned: a.totalCollected,
-                runDuration: a.durationMs,
-                initialPoints: a.initialTotal,
-                finalPoints: a.endTotal,
-                desktopPoints: a.desktopCollected,
-                mobilePoints: a.mobileCollected,
-                errors: a.errors,
-                banned: a.banned?.status
-            }))
+            // Aggregate results by email to handle multi-pass duplicates
+            const aggregatedMap = new Map<string, AccountResult>()
+
+            for (const a of accounts) {
+                const existing = aggregatedMap.get(a.email)
+                if (!existing) {
+                    aggregatedMap.set(a.email, {
+                        email: a.email,
+                        pointsEarned: a.totalCollected,
+                        runDuration: a.durationMs,
+                        initialPoints: a.initialTotal,
+                        finalPoints: a.endTotal,
+                        desktopPoints: a.desktopCollected,
+                        mobilePoints: a.mobileCollected,
+                        errors: a.errors,
+                        banned: a.banned?.status
+                    })
+                } else {
+                    // Merge multi-pass data
+                    existing.pointsEarned += a.totalCollected
+                    existing.runDuration += a.durationMs
+                    existing.desktopPoints += a.desktopCollected
+                    existing.mobilePoints += a.mobileCollected
+                    existing.finalPoints = a.endTotal // Update to latest balance
+
+                    if (a.errors.length) existing.errors = (existing.errors || []).concat(a.errors)
+                    if (a.banned?.status) existing.banned = true
+                }
+            }
+
+            const results: AccountResult[] = Array.from(aggregatedMap.values())
 
             const successCount = results.filter(a => !a.errors?.length && !a.banned).length
             const totalPoints = results.reduce((sum, acc) => sum + (acc.pointsEarned || 0), 0)
