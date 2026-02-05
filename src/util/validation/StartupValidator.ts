@@ -166,11 +166,28 @@ export class StartupValidator {
         }
 
         if (hasProxyUrl) {
-          if (!account.proxy.port || account.proxy.port <= 0) {
+          // Check if port is provided explicitly OR if it exists in the URL
+          let portValid = false
+          if (account.proxy.port && account.proxy.port > 0) {
+            portValid = true
+          } else {
+            // Try to extract port from URL
+            try {
+              const urlStr = account.proxy.url.includes('://') ? account.proxy.url : `http://${account.proxy.url}`
+              const parsed = new URL(urlStr)
+              if (parsed.port && parseInt(parsed.port, 10) > 0) {
+                portValid = true
+              }
+            } catch (e) {
+              // Invalid URL format - will be caught by actual connection attempts, but validation fails here
+            }
+          }
+
+          if (!portValid) {
             this.addError(
               'accounts',
               `${prefix}: Proxy URL provided but port is missing or invalid`,
-              'Add a valid proxy port number (e.g., 8080, 3128)'
+              'Add a valid proxy port number (e.g., 8080, 3128) or include it in the URL'
             )
           }
         }

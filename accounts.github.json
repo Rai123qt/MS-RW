@@ -17,5 +17,24 @@
             "mobile": true,
             "desktop": true
         }
+    },
+    {
+        "email": "example2@outlook.com",
+        "password": "PASSWORD_HERE",
+        "totpSecret": "",
+        "recoveryEmail": "",
+        "geoLocale": "US",
+        "langCode": "en",
+        "proxy": {
+            "proxyAxios": false,
+            "url": "http://1.2.3.4",
+            "port": 8080,
+            "username": "proxy_user",
+            "password": "proxy_password"
+        },
+        "saveFingerprint": {
+            "mobile": true,
+            "desktop": true
+        }
     }
 ]
