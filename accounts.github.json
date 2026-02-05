@@ -1,123 +1,17 @@
 [
     {
-        "email": "thomas.baker.k49m@outlook.com",
-        "password": "MoonLight#77",
-        "totpSecret": "",
+        "email": "example1@outlook.com",
+        "password": "PASSWORD_HERE",
+        "totpSecret": "TOP_SECRET_HERE",
         "recoveryEmail": "",
         "geoLocale": "US",
         "langCode": "en",
         "proxy": {
             "proxyAxios": false,
-            "url": "http://9.142.37.167",
-            "port": 5338,
-            "username": "yaxfvucs",
-            "password": "bi4ir2l6hufd",
-            "credentials": [
-                {
-                    "username": "yaxfvucs",
-                    "password": "bi4ir2l6hufd"
-                }
-            ]
-        },
-        "saveFingerprint": {
-            "mobile": true,
-            "desktop": true
-        }
-    },
-    {
-        "email": "kevin.turner.x92a@outlook.com",
-        "password": "H@rdPass123!",
-        "totpSecret": "",
-        "recoveryEmail": "",
-        "geoLocale": "US",
-        "langCode": "en",
-        "proxy": {
-            "proxyAxios": false,
-            "url": "http://192.46.203.70",
-            "port": 6036,
-            "username": "yaxfvucs",
-            "password": "bi4ir2l6hufd",
-            "credentials": [
-                {
-                    "username": "yaxfvucs",
-                    "password": "bi4ir2l6hufd"
-                }
-            ]
-        },
-        "saveFingerprint": {
-            "mobile": true,
-            "desktop": true
-        }
-    },
-    {
-        "email": "david.wilson.p55q@outlook.com",
-        "password": "Guitar*Hero99",
-        "totpSecret": "",
-        "recoveryEmail": "",
-        "geoLocale": "US",
-        "langCode": "en",
-        "proxy": {
-            "proxyAxios": false,
-            "url": "http://192.46.188.231",
-            "port": 5890,
-            "username": "yaxfvucs",
-            "password": "bi4ir2l6hufd",
-            "credentials": [
-                {
-                    "username": "yaxfvucs",
-                    "password": "bi4ir2l6hufd"
-                }
-            ]
-        },
-        "saveFingerprint": {
-            "mobile": true,
-            "desktop": true
-        }
-    },
-    {
-        "email": "ryan.cooper.b10z@outlook.com",
-        "password": "Coffee!Bean24",
-        "totpSecret": "",
-        "recoveryEmail": "",
-        "geoLocale": "US",
-        "langCode": "en",
-        "proxy": {
-            "proxyAxios": false,
-            "url": "http://192.53.138.86",
-            "port": 6024,
-            "username": "yaxfvucs",
-            "password": "bi4ir2l6hufd",
-            "credentials": [
-                {
-                    "username": "yaxfvucs",
-                    "password": "bi4ir2l6hufd"
-                }
-            ]
-        },
-        "saveFingerprint": {
-            "mobile": true,
-            "desktop": true
-        }
-    },
-    {
-        "email": "emily.davis.h44q@hotmail.com",
-        "password": "SunSet#7766",
-        "totpSecret": "",
-        "recoveryEmail": "",
-        "geoLocale": "US",
-        "langCode": "en",
-        "proxy": {
-            "proxyAxios": false,
-            "url": "http://216.98.254.197",
-            "port": 6507,
-            "username": "yaxfvucs",
-            "password": "bi4ir2l6hufd",
-            "credentials": [
-                {
-                    "username": "yaxfvucs",
-                    "password": "bi4ir2l6hufd"
-                }
-            ]
+            "url": "http://1.2.3.4",
+            "port": 8080,
+            "username": "proxy_user",
+            "password": "proxy_password"
         },
         "saveFingerprint": {
             "mobile": true,
