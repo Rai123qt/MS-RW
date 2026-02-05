@@ -6,8 +6,8 @@ concurrency:
 
 on:
   schedule:
-    # Chạy 1 lần/ngày lúc 4:00 PM Vietnam (9:00 AM UTC)
-    - cron: '30 8 * * *'
+    # Chạy 2 lần/ngày: 08:00 AM VN (01:00 UTC) và 16:00 PM VN (09:00 UTC)
+    - cron: '0 1,9 * * *'
   workflow_dispatch:
     inputs:
       account_filter:
@@ -62,10 +62,20 @@ jobs:
         sudo apt-get install -y xvfb libnss3 libatk-bridge2.0-0 libdrm2 libxkbcommon0 libgbm1 libasound2t64
 
     - name: Setup Config
-      run: cp config.github.json src/config.jsonc
+      run: |
+        if [ -n "${{ secrets.CONFIG_JSON }}" ]; then
+          echo '${{ secrets.CONFIG_JSON }}' > src/config.jsonc
+        else
+          cp config.github.json src/config.jsonc
+        fi
 
     - name: Setup Accounts
-      run: cp accounts.github.json src/accounts.jsonc
+      run: |
+        if [ -n "${{ secrets.ACCOUNTS_JSON }}" ]; then
+          echo '${{ secrets.ACCOUNTS_JSON }}' > src/accounts.jsonc
+        else
+          cp accounts.github.json src/accounts.jsonc
+        fi
 
     - name: Filter & Shuffle Accounts
       env:
