@@ -1,7 +1,7 @@
 {
-  "name": "microsoft-rewards-bot",
-  "version": "3.61.4",
-  "description": "Automate Microsoft Rewards points collection",
+  "name": "rewards-bot-test",
+  "version": "1.0.0",
+  "description": "Test Bot",
   "private": true,
   "main": "index.js",
   "engines": {
@@ -38,6 +38,7 @@
     "Cheerio"
   ],
   "author": "",
+  "license": "ISC",
   "devDependencies": {
     "@types/express": "^4.17.25",
     "@types/ms": "^0.7.34",
