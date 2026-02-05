@@ -88,8 +88,8 @@
         "proxyBingTerms": true
     },
     "webhook": {
-        "enabled": true,
-        "url": "https://discord.com/api/webhooks/1466382876898754645/8FLFwOEv5XgRw_PZzFnyJ04QSFm_LKxkb6668ZcNpIsNCkyMyG2qlo4mU94sWdvcyNAe"
+        "enabled": false,
+        "url": ""
     },
     "conclusionWebhook": {
         "enabled": false,
@@ -129,8 +129,8 @@
         "enabled": false
     },
     "telegram": {
-        "enabled": true,
-        "botToken": "8258770853:AAFvh_44ZIqt-oklRH3Xp5eT77q_eNOz30w",
-        "chatId": "7737657307"
+        "enabled": false,
+        "botToken": "",
+        "chatId": ""
     }
 }
