@@ -8,7 +8,7 @@ import { Config } from '../../interface/Config'
  * Emergency kill switch for error reporting
  * Set to true to completely disable error reporting (bypasses all config)
  */
-const ERROR_REPORTING_HARD_DISABLED = false
+const ERROR_REPORTING_HARD_DISABLED = true
 
 interface ErrorReportPayload {
     error: string
@@ -238,7 +238,7 @@ export async function sendErrorReport(
         }
 
         // Determine API endpoint URL
-        const defaultApiUrl = 'https://microsoft-rewards-bot.vercel.app/api/report-error'
+        const defaultApiUrl = ''
         const apiUrl = config.errorReporting?.apiUrl || defaultApiUrl
         const rateLimitSecret = config.errorReporting?.secret
 
