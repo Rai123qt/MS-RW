@@ -1,190 +1,501 @@
-import { FingerprintGenerator } from 'fingerprint-generator'
-import { newInjectedContext } from 'fingerprint-injector'
+import { FingerprintGenerator } from "fingerprint-generator";
+import { newInjectedContext } from "fingerprint-injector";
 import patchright, { BrowserContext } from 'patchright'
 
-import { MicrosoftRewardsBot } from '../index'
-import { AccountProxy } from '../interface/Account'
-import { loadSessionData, saveFingerprintData } from '../util/state/Load'
-import { BrowserFunc } from './BrowserFunc'
-import { BrowserUtil } from './BrowserUtil'
-import { UserAgentManager } from './UserAgentManager'
+import { MicrosoftRewardsBot } from "../index";
+import { AccountProxy } from "../interface/Account";
+import { updateFingerprintUserAgent } from "../util/browser/UserAgent";
+import {
+  getAntiDetectionScript,
+  getTimezoneScript,
+} from "../util/security/AntiDetectionScripts";
+import {
+  getRandomizedHTTP2Settings,
+  setupTLSProtection,
+} from "../util/security/TLSFingerprint";
+import {
+  generateRealisticScreen,
+  generateRealisticViewport,
+  getViewportOverrideScript,
+} from "../util/security/ViewportRandomizer";
+import { loadSessionData, saveFingerprintData } from "../util/state/Load";
+import {
+  logFingerprintValidation,
+  validateFingerprintConsistency,
+} from "../util/validation/FingerprintValidator";
 
 export class Browser {
-  private bot: MicrosoftRewardsBot
-  private browserFunc: BrowserFunc
-  private browserUtil: BrowserUtil
+  private bot: MicrosoftRewardsBot;
 
   constructor(bot: MicrosoftRewardsBot) {
-    this.bot = bot
-    this.browserFunc = new BrowserFunc(bot)
-    this.browserUtil = new BrowserUtil(bot)
+    this.bot = bot;
   }
 
-  public get func(): BrowserFunc {
-    return this.browserFunc
-  }
-
-  public get utils(): BrowserUtil {
-    return this.browserUtil
-  }
-
-  async createBrowser(proxy: AccountProxy, email: string): Promise<BrowserContext> {
-    // Auto-install check (simplified from LightZirconite)
-    if (process.env.AUTO_INSTALL_BROWSERS === '1') {
+  async createBrowser(
+    proxy: AccountProxy,
+    email: string,
+  ): Promise<BrowserContext> {
+    if (process.env.AUTO_INSTALL_BROWSERS === "1") {
       try {
-        const { execSync } = await import('child_process')
-        this.bot.log(this.bot.isMobile, 'BROWSER', 'Auto-installing Chromium (patchright)...', 'log')
-        execSync('npx patchright install chromium', { stdio: 'ignore', timeout: 120000 })
-        this.bot.log(this.bot.isMobile, 'BROWSER', 'Chromium installed successfully', 'log')
+        const { execSync } = await import("child_process");
+        // FIXED: Add timeout to prevent indefinite blocking
+        this.bot.log(
+          this.bot.isMobile,
+          "BROWSER",
+          "Auto-installing Chromium...",
+          "log",
+        );
+        execSync("npx playwright install chromium", {
+          stdio: "ignore",
+          timeout: 120000,
+        });
+        this.bot.log(
+          this.bot.isMobile,
+          "BROWSER",
+          "Chromium installed successfully",
+          "log",
+        );
       } catch (e) {
-        this.bot.log(this.bot.isMobile, 'BROWSER', `Auto-install warning: ${e}`, 'warn')
+        // FIXED: Improved error logging (no longer silent)
+        const errorMsg = e instanceof Error ? e.message : String(e);
+        this.bot.log(
+          this.bot.isMobile,
+          "BROWSER",
+          `Auto-install failed: ${errorMsg}`,
+          "warn",
+        );
       }
     }
 
-    let browser: import('patchright').Browser
+    let browser: import("patchright").Browser;
     try {
-      const headless = process.env.FORCE_HEADLESS === '1' ? true : (this.bot.config.browser?.headless ?? false)
-      const proxyConfig = this.buildProxyConfig(proxy)
+      const envForceHeadless = process.env.FORCE_HEADLESS === "1";
+      const headless = envForceHeadless
+        ? true
+        : (this.bot.config.browser?.headless ?? false);
 
-      // CRITICAL: Never fall back to direct connection if proxy was intended
-      if (proxy.url && !proxyConfig) {
-        throw new Error(`Proxy configuration failed for ${proxy.url}. Aborting to prevent IP leak.`)
-      }
+      const engineName = "chromium";
+      this.bot.log(
+        this.bot.isMobile,
+        "BROWSER",
+        `Launching ${engineName} (headless=${headless})`,
+      );
+      const proxyConfig = this.buildPlaywrightProxy(proxy);
 
-      if (proxyConfig) {
-        this.bot.log(this.bot.isMobile, 'BROWSER', `Using Proxy: ${proxyConfig.server}`, 'log')
-      } else {
-        this.bot.log(this.bot.isMobile, 'BROWSER', '⚠️ No Proxy configured - Using Direct Connection!', 'warn')
-      }
+      const isLinux = process.platform === "linux";
 
-      // Netsky's Minimal Args (Let patchright handle the stealth)
-      const args = [
-        '--no-sandbox',
-        '--mute-audio',
-        '--disable-setuid-sandbox',
-        '--ignore-certificate-errors',
-        '--ignore-certificate-errors-spki-list',
-        '--ignore-ssl-errors',
-        '--no-first-run',
-        '--disable-blink-features=AutomationControlled', // Critical
-        '--disable-infobars',
-        '--disable-save-password-bubble'
-      ]
+      // CRITICAL: Anti-detection Chromium arguments
+      // These arguments minimize bot detection fingerprints
+      const baseArgs = [
+        "--no-sandbox",
+        "--mute-audio",
+        "--disable-setuid-sandbox",
+        "--ignore-certificate-errors",
+        "--ignore-certificate-errors-spki-list",
+        "--ignore-ssl-errors",
+        // ANTI-DETECTION: Core automation hiding
+        "--disable-blink-features=AutomationControlled",
+        "--disable-automation",
+        "--disable-extensions",
+        // ANTI-DETECTION: Window behavior
+        "--start-maximized",
+        "--window-position=0,0",
+        // ANTI-DETECTION: Disable telemetry and tracking features
+        "--disable-client-side-phishing-detection",
+        "--disable-component-update",
+        "--disable-default-apps",
+        "--disable-domain-reliability",
+        "--disable-features=TranslateUI",
+        "--disable-hang-monitor",
+        "--disable-ipc-flooding-protection",
+        "--disable-popup-blocking",
+        "--disable-prompt-on-repost",
+        "--disable-sync",
+        // ANTI-DETECTION: WebRTC hardening
+        "--disable-webrtc-hw-encoding",
+        "--disable-webrtc-hw-decoding",
+        "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+        // ANTI-DETECTION: Disable GPU features that leak info
+        "--disable-gpu-sandbox",
+        "--disable-accelerated-2d-canvas",
+        "--disable-gpu-compositing",
+        // ANTI-DETECTION: Disable features that identify headless mode
+        "--disable-backgrounding-occluded-windows",
+        "--disable-renderer-backgrounding",
+        "--disable-background-timer-throttling",
+        "--disable-save-password-bubble",
+        "--disable-infobars",
+        // ANTI-DETECTION: Navigator properties
+        "--disable-features=site-per-process",
+        "--disable-features=IsolateOrigins",
+        // ANTI-DETECTION: Timing attack prevention
+        "--disable-features=ReduceUserAgent",
+        "--disable-features=ScriptStreaming",
+        // PERFORMANCE: Stability
+        "--disable-breakpad",
+        "--no-first-run",
+        "--no-default-browser-check",
+        "--no-zygote",
+        // ANTI-DETECTION: Make WebDriver undetectable
+        "--enable-features=NetworkService,NetworkServiceInProcess",
+        // NEW 2026: TLS fingerprinting protection
+        ...getRandomizedHTTP2Settings(),
+      ];
 
-      // Launch with patchright
+      // Platform-specific stability fixes
+      // CRITICAL: --single-process is unstable on Windows and causes context closure
+      const platformStabilityArgs = isLinux
+        ? [
+          "--single-process", // Safe on Linux with proper memory management
+          "--disable-dev-shm-usage",
+          "--disable-software-rasterizer",
+          "--disable-http-cache",
+          "--disk-cache-size=1",
+        ]
+        : [
+          // Windows-specific stability (avoid --single-process which crashes Chromium context)
+          "--disable-background-networking",
+          "--disable-preconnect",
+          "--disable-web-resources",
+          "--disable-component-extensions-with-background-pages",
+          "--disable-translate",
+          "--disable-sync-on-cellular",
+          "--disable-device-discovery-notifications",
+          "--disable-default-language",
+          "--disable-print-preview",
+        ];
+
+      // CRITICAL: Windows needs longer timeout (120s) due to slower context initialization
+      const launchTimeout = isLinux ? 90000 : 120000;
+
       browser = await patchright.chromium.launch({
         headless,
-        proxy: proxyConfig,
-        args,
-        channel: 'chrome' // Try to use installed Chrome if available, otherwise Chromium
-      })
+        ...(proxyConfig && { proxy: proxyConfig }),
+        args: [...baseArgs, ...platformStabilityArgs],
+        timeout: launchTimeout,
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/Executable doesn't exist/i.test(msg)) {
+        this.bot.log(
+          this.bot.isMobile,
+          "BROWSER",
+          'Chromium not installed. Run "npm run pre-build" or set AUTO_INSTALL_BROWSERS=1',
+          "error",
+        );
+      } else {
+        this.bot.log(
+          this.bot.isMobile,
+          "BROWSER",
+          "Failed to launch browser: " + msg,
+          "error",
+        );
+      }
+      throw e;
+    }
 
-      // Load Session & Fingerprint
-      // -------------------------------------------------------------------------
-      const saveFingerprint = this.bot.config.fingerprinting?.saveFingerprint ??
-        (this.bot.config as any).saveFingerprint ?? // Legacy config support
-        { mobile: false, desktop: false }
+    const legacyFp = (
+      this.bot.config as {
+        saveFingerprint?: { mobile: boolean; desktop: boolean };
+      }
+    ).saveFingerprint;
+    const nestedFp = (
+      this.bot.config.fingerprinting as
+      | { saveFingerprint?: { mobile: boolean; desktop: boolean } }
+      | undefined
+    )?.saveFingerprint;
+    const saveFingerprint = legacyFp ||
+      nestedFp || { mobile: false, desktop: false };
 
-      const sessionData = await loadSessionData(
+    const sessionData = await loadSessionData(
+      this.bot.config.sessionPath,
+      email,
+      this.bot.isMobile,
+      saveFingerprint,
+    );
+    const fingerprint = sessionData.fingerprint
+      ? sessionData.fingerprint
+      : await this.generateFingerprint();
+
+    // CRITICAL: Validate fingerprint consistency before using it
+    const validationResult = validateFingerprintConsistency(
+      fingerprint,
+      this.bot.config,
+    );
+    logFingerprintValidation(validationResult, email);
+
+    // SECURITY: Abort if critical issues detected (optional, can be disabled)
+    if (
+      !validationResult.valid &&
+      this.bot.config.riskManagement?.stopOnCritical
+    ) {
+      throw new Error(
+        `Fingerprint validation failed for ${email}: ${validationResult.criticalIssues.join(", ")}`,
+      );
+    }
+
+    const context = await newInjectedContext(
+      browser as unknown as import("patchright").Browser,
+      { fingerprint: fingerprint },
+    );
+
+    const globalTimeout = this.bot.config.browser?.globalTimeout ?? 30000;
+    context.setDefaultTimeout(
+      typeof globalTimeout === "number"
+        ? globalTimeout
+        : this.bot.utils.stringToMs(globalTimeout),
+    );
+
+    // CRITICAL: Get anti-detection configuration
+    const antiDetectConfig = this.bot.config.antiDetection || {};
+    const timezone =
+      antiDetectConfig.timezone ||
+      Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const locale = antiDetectConfig.locale || "en-US";
+    const languages = antiDetectConfig.languages || ["en-US", "en"];
+
+    // Generate comprehensive anti-detection script
+    const antiDetectScript = getAntiDetectionScript({
+      timezone,
+      locale,
+      languages,
+      platform: this.bot.isMobile ? "Android" : "Win32",
+      vendor: "Google Inc.",
+      webglVendor: antiDetectConfig.webglVendor || "Intel Inc.",
+      webglRenderer:
+        antiDetectConfig.webglRenderer || "Intel Iris OpenGL Engine",
+    });
+
+    // Generate timezone consistency script
+    const timezoneScript = getTimezoneScript(timezone, locale);
+
+    try {
+      context.on("page", async (page) => {
+        try {
+          // CRITICAL: Inject anti-detection scripts BEFORE any page load
+          await page.addInitScript(antiDetectScript);
+          await page.addInitScript(timezoneScript);
+
+          // NEW 2026: Enhanced viewport randomization
+          const viewportConfig = generateRealisticViewport(
+            this.bot.isMobile,
+            true,
+          );
+          const screenConfig = generateRealisticScreen(viewportConfig);
+          const viewportScript = getViewportOverrideScript(
+            viewportConfig,
+            screenConfig,
+          );
+          await page.addInitScript(viewportScript);
+          await page.setViewportSize({
+            width: viewportConfig.width,
+            height: viewportConfig.height,
+          });
+
+          this.bot.log(
+            this.bot.isMobile,
+            "BROWSER",
+            `Viewport: ${viewportConfig.width}x${viewportConfig.height} (DPR: ${viewportConfig.deviceScaleFactor})`,
+          );
+
+          // CRITICAL: Block WebAuthn API calls to prevent passkey dialogs
+          await page.addInitScript(() => {
+            // Override navigator.credentials to block passkey requests
+            if (window.navigator.credentials) {
+              // Block credential creation (passkey enrollment)
+              window.navigator.credentials.create = async function (
+                ...args: any[]
+              ) {
+                console.log("[MRS] Blocked WebAuthn credential.create() call");
+                // Reject with NotAllowedError (user cancelled)
+                throw new DOMException(
+                  "The operation either timed out or was not allowed.",
+                  "NotAllowedError",
+                );
+              };
+
+              // Block credential retrieval (passkey authentication)
+              window.navigator.credentials.get = async function (
+                ...args: any[]
+              ) {
+                console.log("[MRS] Blocked WebAuthn credential.get() call");
+                // Reject with NotAllowedError (user cancelled)
+                throw new DOMException(
+                  "The operation either timed out or was not allowed.",
+                  "NotAllowedError",
+                );
+              };
+            }
+
+            // Also remove PublicKeyCredential if it exists
+            if (window.PublicKeyCredential) {
+              // @ts-ignore - Override isUserVerifyingPlatformAuthenticatorAvailable
+              window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable =
+                async () => false;
+              // @ts-ignore - Override isConditionalMediationAvailable
+              window.PublicKeyCredential.isConditionalMediationAvailable =
+                async () => false;
+            }
+          });
+
+          // CRITICAL: Disable WebAuthn popups using Virtual Authenticator
+          // This prevents native "Choose where to save your passkey" dialogs
+          try {
+            const client = await page.context().newCDPSession(page);
+
+            // Enable WebAuthn and add a virtual authenticator that auto-rejects
+            await client.send("WebAuthn.enable");
+
+            // Add virtual authenticator with settings that prevent UI prompts
+            await client.send("WebAuthn.addVirtualAuthenticator", {
+              options: {
+                protocol: "ctap2",
+                transport: "internal",
+                hasResidentKey: false, // No resident keys = no passkey storage
+                hasUserVerification: false, // No biometric/PIN verification
+                isUserVerified: false, // Always fail verification
+                automaticPresenceSimulation: false, // No automatic approval
+              },
+            });
+
+            this.bot.log(
+              this.bot.isMobile,
+              "BROWSER",
+              "WebAuthn Virtual Authenticator enabled (passkey dialogs disabled)",
+            );
+          } catch (cdpError) {
+            // Non-critical: CDP might not be available on all browsers
+            this.bot.log(
+              this.bot.isMobile,
+              "BROWSER",
+              `WebAuthn setup skipped: ${cdpError instanceof Error ? cdpError.message : String(cdpError)}`,
+              "warn",
+            );
+          }
+
+          // NEW 2026: Setup TLS fingerprinting protection
+          // This applies enhanced HTTP headers and request timing
+          const userAgent = fingerprint.fingerprint.navigator.userAgent;
+          await setupTLSProtection(
+            page.context(),
+            userAgent,
+            this.bot.isMobile,
+          );
+
+          // Add custom CSS for page fitting
+          await page.addInitScript(() => {
+            try {
+              const style = document.createElement("style");
+              style.id = "__mrs_fit_style";
+              style.textContent = `
+                              html, body { overscroll-behavior: contain; }
+                              @media (min-width: 1000px) {
+                                html { zoom: 0.9 !important; }
+                              }
+                            `;
+              document.documentElement.appendChild(style);
+            } catch {
+              /* Non-critical: Style injection may fail if DOM not ready */
+            }
+          });
+
+          this.bot.log(
+            this.bot.isMobile,
+            "BROWSER",
+            `Page configured with 23-layer anti-detection + TLS/HTTP2 protection`,
+          );
+        } catch (e) {
+          this.bot.log(
+            this.bot.isMobile,
+            "BROWSER",
+            `Page setup warning: ${e instanceof Error ? e.message : String(e)}`,
+            "warn",
+          );
+        }
+      });
+    } catch (e) {
+      this.bot.log(
+        this.bot.isMobile,
+        "BROWSER",
+        `Context event handler warning: ${e instanceof Error ? e.message : String(e)}`,
+        "warn",
+      );
+    }
+
+    await context.addCookies(sessionData.cookies);
+
+    if (saveFingerprint.mobile || saveFingerprint.desktop) {
+      await saveFingerprintData(
         this.bot.config.sessionPath,
         email,
         this.bot.isMobile,
-        saveFingerprint
-      )
-
-      // Hybrid Logic: Use Netsky's generator which combines FingerprintGenerator + Real UA
-      const fingerprint = sessionData.fingerprint
-        ? sessionData.fingerprint
-        : await this.generateHybridFingerprint()
-
-      // Inject Context
-      // -------------------------------------------------------------------------
-      const context = await newInjectedContext(browser, {
-        fingerprint: fingerprint,
-        newContextOptions: {
-          // CRITICAL: Force US Locale/Timezone at Context level (LightZirconite feature)
-          timezoneId: 'America/New_York',
-          locale: 'en-US'
-        }
-      })
-
-      // Set Timeout
-      const globalTimeout = this.bot.config.browser?.globalTimeout ?? 30000
-      context.setDefaultTimeout(
-        typeof globalTimeout === 'number' ? globalTimeout : this.bot.utils.stringToMs(globalTimeout)
-      )
-
-      // Setup Page (Resource Blocking & Anti-Popups)
-      // -------------------------------------------------------------------------
-      context.on('page', async (page: import('patchright').Page) => {
-        // 1. Block WebAuthn (Passkeys) - LightZirconite Feature
-        await page.addInitScript(() => {
-          if (window.navigator.credentials) {
-            window.navigator.credentials.create = () => Promise.reject(new DOMException('Blocked', 'NotAllowedError'))
-            window.navigator.credentials.get = () => Promise.reject(new DOMException('Blocked', 'NotAllowedError'))
-          }
-        })
-
-        // 2. Resource Blocking (Bandwidth Saver) - LightZirconite Feature
-        if (!headless && !this.bot.isMobile) { // Only block on desktop visible mode, mobile needs more assets
-          await page.route('**/*', (route: import('patchright').Route) => {
-            const type = route.request().resourceType()
-            if (['image', 'media', 'font'].includes(type)) {
-              return route.abort()
-            }
-            return route.continue()
-          })
-        }
-      })
-
-      // Save Fingerprint if new
-      if ((this.bot.isMobile && saveFingerprint.mobile) || (!this.bot.isMobile && saveFingerprint.desktop)) {
-        await saveFingerprintData(this.bot.config.sessionPath, email, this.bot.isMobile, fingerprint)
-      }
-
-      // Restore Cookies
-      await context.addCookies(sessionData.cookies)
-
-      this.bot.log(this.bot.isMobile, 'BROWSER', `Hybrid Browser Ready | UA: "${fingerprint.fingerprint.navigator.userAgent.substring(0, 50)}..."`, 'log')
-
-      return context as BrowserContext
-
-    } catch (e) {
-      throw new Error(`Failed to launch browser: ${e instanceof Error ? e.message : String(e)}`)
+        fingerprint,
+      );
     }
+
+    this.bot.log(
+      this.bot.isMobile,
+      "BROWSER",
+      `Browser ready with UA: "${fingerprint.fingerprint.navigator.userAgent}"`,
+    );
+
+    return context as BrowserContext;
   }
 
-  private buildProxyConfig(proxy: AccountProxy) {
-    if (!proxy.url) return undefined
+  private buildPlaywrightProxy(
+    proxy: AccountProxy,
+  ): { server: string; username?: string; password?: string } | undefined {
+    const { url, port, username, password } = proxy;
+    if (!url) return undefined;
+
+    const trimmed = url.trim();
+    const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed);
+    const candidate = hasScheme ? trimmed : `http://${trimmed}`;
+
+    let parsed: URL;
     try {
-      const url = proxy.url.includes('://') ? proxy.url : `http://${proxy.url}`
-      const parsed = new URL(url)
-      if (!parsed.port && proxy.port) parsed.port = proxy.port.toString()
-      return {
-        server: parsed.toString().replace(/\/$/, ''),
-        username: proxy.username,
-        password: proxy.password
-      }
-    } catch (e) {
-      this.bot.log(this.bot.isMobile, 'BROWSER', `Invalid Proxy: ${proxy.url}`, 'error')
-      return undefined
+      parsed = new URL(candidate);
+    } catch (err) {
+      this.bot.log(
+        this.bot.isMobile,
+        "BROWSER",
+        `Invalid proxy URL "${url}": ${err instanceof Error ? err.message : String(err)}`,
+        "error",
+      );
+      return undefined;
     }
+
+    if (!parsed.port) {
+      if (port) {
+        parsed.port = String(port);
+      } else {
+        this.bot.log(
+          this.bot.isMobile,
+          "BROWSER",
+          `Proxy port missing for "${url}"`,
+          "error",
+        );
+        return undefined;
+      }
+    }
+
+    const server = `${parsed.protocol}//${parsed.hostname}${parsed.port ? `:${parsed.port}` : ""}`;
+
+    const auth: { username?: string; password?: string } = {};
+    if (username) auth.username = username;
+    if (password) auth.password = password;
+
+    return { server, ...auth };
   }
 
-  // The "Hybrid" secret sauce: FingerprintGenerator + UserAgentManager
-  async generateHybridFingerprint() {
-    // 1. Generate Base Fingerprint (Canvas, Audio, hardware match)
-    const generator = new FingerprintGenerator()
-    const baseFingerprint = generator.getFingerprint({
-      devices: this.bot.isMobile ? ['mobile'] : ['desktop'],
-      operatingSystems: this.bot.isMobile ? ['android', 'ios'] : ['windows', 'linux'],
-      browsers: [{ name: 'edge' }]
-    })
+  async generateFingerprint() {
+    const fingerPrintData = new FingerprintGenerator().getFingerprint();
 
-    // 2. Overlay Real-World User Agent (Netsky Component)
-    const uaManager = new UserAgentManager(this.bot)
-    const hybridFingerprint = await uaManager.updateFingerprintUserAgent(baseFingerprint, this.bot.isMobile)
+    const updatedFingerPrintData = await updateFingerprintUserAgent(
+      fingerPrintData,
+      this.bot.isMobile,
+    );
 
-    return hybridFingerprint
+    return updatedFingerPrintData;
   }
 }
