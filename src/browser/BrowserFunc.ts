@@ -1,6 +1,6 @@
 import { AxiosError, AxiosRequestConfig } from 'axios'
 import { CheerioAPI, load } from 'cheerio'
-import { BrowserContext, Page } from 'patchright'
+import { BrowserContext, Page } from 'rebrowser-playwright'
 
 import { RETRY_LIMITS, SELECTORS, TIMEOUTS, URLS } from '../constants'
 import { MicrosoftRewardsBot } from '../index'

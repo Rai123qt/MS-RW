@@ -17,7 +17,7 @@
  * - https://ja3er.com/
  */
 
-import { BrowserContext } from "patchright";
+import { BrowserContext } from 'rebrowser-playwright';
 import { secureRandomInt } from "./SecureRandom";
 
 /**

@@ -1,5 +1,5 @@
 import { platform } from 'os'
-import { Page } from 'patchright'
+import { Page } from 'rebrowser-playwright'
 
 import { Workers } from '../Workers'
 import { QueryCore } from '../QueryEngine'

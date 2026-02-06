@@ -1,4 +1,4 @@
-import { Page } from 'patchright'
+import { Page } from 'rebrowser-playwright'
 import { Workers } from '../Workers'
 
 export class BonusClaim extends Workers {

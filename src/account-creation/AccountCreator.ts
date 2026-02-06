@@ -1,7 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import * as readline from 'readline'
-import type { BrowserContext, Page } from 'patchright'
+import type { BrowserContext, Page } from 'rebrowser-playwright'
 import { log } from '../util/notifications/Logger'
 import { DataGenerator } from './DataGenerator'
 import { HumanBehavior } from './HumanBehavior'
@@ -2133,7 +2133,7 @@ export class AccountCreator {
    * CRITICAL: Check if checkbox is checked (Fluent UI compatible)
    * Uses 3 methods because Playwright's isChecked() doesn't work with Fluent UI
    */
-  private async isCheckboxChecked(checkbox: import('patchright').Locator): Promise<boolean> {
+  private async isCheckboxChecked(checkbox: import('rebrowser-playwright').Locator): Promise<boolean> {
     // Method 1: Standard Playwright isChecked()
     const playwrightCheck = await checkbox.isChecked().catch(() => false)
     if (playwrightCheck) return true

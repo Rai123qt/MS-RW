@@ -13,7 +13,7 @@
  */
 
 import { AxiosError } from "axios";
-import { Page, Response } from "patchright";
+import { Page, Response } from 'rebrowser-playwright';
 
 export interface BanDetectionResult {
   detected: boolean;

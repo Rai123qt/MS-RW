@@ -1,6 +1,6 @@
 import * as fs from 'fs'
 import path from 'path'
-import type { Page } from 'patchright'
+import type { Page } from 'rebrowser-playwright'
 
 import { DELAYS } from '../../constants'
 import { HumanTyping } from '../../util/browser/HumanTyping'

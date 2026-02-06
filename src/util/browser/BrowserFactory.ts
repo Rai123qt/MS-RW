@@ -5,7 +5,7 @@
  * Centralized browser instance creation and cleanup logic
  */
 
-import type { BrowserContext } from 'patchright'
+import type { BrowserContext } from 'rebrowser-playwright'
 import type { MicrosoftRewardsBot } from '../../index'
 import type { AccountProxy } from '../../interface/Account'
 

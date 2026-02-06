@@ -1,4 +1,4 @@
-import type { Page } from 'patchright'
+import type { Page } from 'rebrowser-playwright'
 import { MicrosoftRewardsBot } from '../../index'
 import { logError } from '../../util/notifications/Logger'
 import { SecurityUtils } from './SecurityUtils'

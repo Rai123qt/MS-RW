@@ -1,5 +1,5 @@
 import { load } from 'cheerio'
-import { Page } from 'patchright'
+import { Page } from 'rebrowser-playwright'
 import { DISMISSAL_DELAYS } from '../constants'
 import { MicrosoftRewardsBot } from '../index'
 import { waitForPageReady } from '../util/browser/SmartWait'

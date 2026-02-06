@@ -10,7 +10,7 @@
  * - Session invalidation
  */
 
-import { Page } from "patchright";
+import { Page } from 'rebrowser-playwright';
 import { log } from "../notifications/Logger";
 import {
   BanDetectionResult,

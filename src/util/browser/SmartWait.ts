@@ -1,4 +1,4 @@
-import { Locator, Page } from 'patchright';
+import { Locator, Page } from 'rebrowser-playwright';
 
 /**
  * Wait for network idle state specifically

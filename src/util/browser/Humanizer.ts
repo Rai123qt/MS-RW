@@ -13,7 +13,7 @@
  * 6. Fatigue simulation
  */
 
-import { Page } from "patchright";
+import { Page } from 'rebrowser-playwright';
 import type { ConfigHumanization } from "../../interface/Config";
 import { Util } from "../core/Utils";
 import {

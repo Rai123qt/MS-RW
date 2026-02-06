@@ -1,4 +1,4 @@
-import { Page } from 'patchright'
+import { Page } from 'rebrowser-playwright'
 
 import { TIMEOUTS } from '../../constants'
 import { waitForElementSmart } from '../../util/browser/SmartWait'

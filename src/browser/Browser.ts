@@ -1,6 +1,7 @@
 import { FingerprintGenerator } from "fingerprint-generator";
 import { newInjectedContext } from "fingerprint-injector";
-import patchright, { BrowserContext } from 'patchright'
+import { chromium, BrowserContext } from 'rebrowser-playwright'
+import { Page } from 'playwright'
 
 import { MicrosoftRewardsBot } from "../index";
 import { AccountProxy } from "../interface/Account";
@@ -67,7 +68,7 @@ export class Browser {
       }
     }
 
-    let browser: import("patchright").Browser;
+    let browser: import('rebrowser-playwright').Browser;
     try {
       const envForceHeadless = process.env.FORCE_HEADLESS === "1";
       const headless = envForceHeadless
@@ -168,7 +169,7 @@ export class Browser {
       // CRITICAL: Windows needs longer timeout (120s) due to slower context initialization
       const launchTimeout = isLinux ? 90000 : 120000;
 
-      browser = await patchright.chromium.launch({
+      browser = await chromium.launch({
         headless,
         ...(proxyConfig && { proxy: proxyConfig }),
         args: [...baseArgs, ...platformStabilityArgs],
@@ -235,7 +236,7 @@ export class Browser {
     }
 
     const context = await newInjectedContext(
-      browser as unknown as import("patchright").Browser,
+      browser as unknown as import('rebrowser-playwright').Browser,
       { fingerprint: fingerprint },
     );
 
@@ -270,7 +271,7 @@ export class Browser {
     const timezoneScript = getTimezoneScript(timezone, locale);
 
     try {
-      context.on("page", async (page) => {
+      context.on("page", async (page: Page) => {
         try {
           // CRITICAL: Inject anti-detection scripts BEFORE any page load
           await page.addInitScript(antiDetectScript);

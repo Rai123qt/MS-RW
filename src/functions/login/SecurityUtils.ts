@@ -1,4 +1,4 @@
-import type { Page } from 'patchright'
+import type { Page } from 'rebrowser-playwright'
 import { DISCORD } from '../../constants'
 import { MicrosoftRewardsBot } from '../../index'
 import { SecurityIncident } from './types'

@@ -18,7 +18,7 @@
  * This module ensures account creation is INDISTINGUISHABLE from manual creation.
  */
 
-import type { Page } from 'patchright'
+import type { Page } from 'rebrowser-playwright'
 import { log } from '../util/notifications/Logger'
 import { generateMousePath, generateScrollPath } from '../util/security/NaturalMouse'
 import {
@@ -128,7 +128,7 @@ export class HumanBehavior {
      * @param text Text to type
      * @param context Description for logging
      */
-    async humanType(locator: import('patchright').Locator, text: string, context: string): Promise<void> {
+    async humanType(locator: import('rebrowser-playwright').Locator, text: string, context: string): Promise<void> {
         // CRITICAL: Clear field first (human would select all + delete)
         await locator.clear()
         await this.humanDelay(200, 600, context)
@@ -303,7 +303,7 @@ export class HumanBehavior {
      * @returns true if click succeeded, false otherwise
      */
     async humanClick(
-        locator: import('patchright').Locator,
+        locator: import('rebrowser-playwright').Locator,
         context: string,
         maxRetries: number = 3
     ): Promise<boolean> {
@@ -402,8 +402,8 @@ export class HumanBehavior {
      * @returns true if interaction succeeded, false otherwise
      */
     async humanDropdownSelect(
-        buttonLocator: import('patchright').Locator,
-        optionLocator: import('patchright').Locator,
+        buttonLocator: import('rebrowser-playwright').Locator,
+        optionLocator: import('rebrowser-playwright').Locator,
         context: string
     ): Promise<boolean> {
         // STEP 1: Click dropdown button

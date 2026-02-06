@@ -1,4 +1,4 @@
-import type { Page } from 'patchright'
+import type { Page } from 'rebrowser-playwright'
 import type { MorePromotion, PromotionalItem } from './DashboardData'
 
 /**

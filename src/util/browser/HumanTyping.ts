@@ -12,7 +12,7 @@
  * IMPORTANT: Keep separate from account-creation to avoid coupling
  */
 
-import type { Locator } from 'patchright'
+import type { Locator } from 'rebrowser-playwright'
 
 export class HumanTyping {
     /**
