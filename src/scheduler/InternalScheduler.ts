@@ -34,6 +34,13 @@ export class InternalScheduler {
     public start(): boolean {
         const scheduleConfig = this.config.scheduling
 
+        // ENV override: Allow disabling scheduler via environment variable (for CI/GitHub Actions)
+        const envSchedulingEnabled = process.env.REWARDS_SCHEDULING_ENABLED
+        if (envSchedulingEnabled === 'false' || envSchedulingEnabled === '0') {
+            log('main', 'SCHEDULER', 'Internal scheduler disabled via REWARDS_SCHEDULING_ENABLED env var (using external scheduler)')
+            return false
+        }
+
         // Validation checks
         if (!scheduleConfig?.enabled) {
             log('main', 'SCHEDULER', 'Internal scheduler disabled (scheduling.enabled = false)')
