@@ -132,6 +132,10 @@ jobs:
         FORCE_HEADLESS: '0'
         ACCOUNT_DELAY_MIN: '60000'
         ACCOUNT_DELAY_MAX: '180000'
+        # Disable bot's internal scheduler - use GitHub Actions cron instead
+        REWARDS_SCHEDULING_ENABLED: 'false'
+        # Disable dashboard to ensure clean exit
+        REWARDS_DASHBOARD_ENABLED: 'false'
       run: |
         xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm start
 
