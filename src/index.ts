@@ -5,12 +5,12 @@ import type { Worker } from 'cluster'
 import cluster from 'cluster'
 import fs from 'fs'
 import path from 'path'
-import type { Page } from 'playwright'
+import type { Page } from 'rebrowser-playwright'
 import { createInterface } from 'readline'
 import { BrowserFunc } from './browser/BrowserFunc'
 import { BrowserUtil } from './browser/BrowserUtil'
 import { Humanizer } from './util/browser/Humanizer'
-import { getMemoryMonitor, stopMemoryMonitor } from './util/core/MemoryMonitor'
+import { stopMemoryMonitor } from './util/core/MemoryMonitor'
 import { formatDetailedError, normalizeRecoveryEmail, shortErrorMessage, Util } from './util/core/Utils'
 import { AxiosClient } from './util/network/Axios'
 import { QueryDiversityEngine } from './util/network/QueryDiversityEngine'
@@ -27,7 +27,8 @@ import { Workers } from './functions/Workers'
 
 import { DesktopFlow } from './flows/DesktopFlow'
 import { MobileFlow } from './flows/MobileFlow'
-import { SummaryReporter, type AccountResult } from './flows/SummaryReporter'
+import { TelegramNotifier } from './notifications/TelegramNotifier'
+import { SummaryReporter, type AccountResult, type SummaryData } from './flows/SummaryReporter'
 
 import { InternalScheduler } from './scheduler/InternalScheduler'
 
@@ -105,6 +106,13 @@ export class MicrosoftRewardsBot {
         }
 
         // Validation passed - continue with initialization
+
+        // Shuffle accounts for randomized order (better for security)
+        const shuffleEnabled = (this.config as { shuffleAccounts?: boolean }).shuffleAccounts !== false
+        if (shuffleEnabled) {
+            this.accounts = this.utils.shuffleArray(this.accounts)
+            log('main', 'MAIN', `Accounts shuffled - random order for each run`)
+        }
 
         // Initialize job state
         if (this.config.jobState?.enabled !== false) {
@@ -241,6 +249,11 @@ export class MicrosoftRewardsBot {
         this.printBanner()
         log('main', 'MAIN', `Bot started with ${this.config.clusters} worker(s) (1 bot, ${this.config.clusters} parallel browser${this.config.clusters > 1 ? 's' : ''})`)
 
+        // Send Telegram start notification (Master only)
+        if (cluster.isPrimary) {
+            await this.sendTelegramStartNotification()
+        }
+
         // Only cluster when there's more than 1 cluster demanded
         if (this.config.clusters > 1) {
             if (cluster.isPrimary) {
@@ -261,6 +274,8 @@ export class MicrosoftRewardsBot {
                         await this.utils.wait(TIMEOUTS.ONE_MINUTE)
                     }
                 }
+                // Send Telegram summary notification for single-process fallback
+                await this.sendTelegramSummaryNotification(this.accountSummaries)
                 return
             }
         } else {
@@ -296,6 +311,78 @@ export class MicrosoftRewardsBot {
         console.log('')
         console.log(chalk.cyan('  ================================================'))
         console.log('')
+    }
+
+    private async sendTelegramStartNotification(): Promise<void> {
+        if (!this.config.telegram?.enabled) return
+
+        try {
+            const notifier = new TelegramNotifier(this.config.telegram)
+            const passes = this.config.passesPerRun ?? 1
+            await notifier.sendStartNotification(this.accounts.length, passes)
+            log('main', 'MAIN', '✓ Telegram start notification sent')
+        } catch (error) {
+            log('main', 'MAIN', `Failed to send Telegram start notification: ${error instanceof Error ? error.message : String(error)}`, 'warn')
+        }
+    }
+
+    private async sendTelegramSummaryNotification(accounts: AccountSummary[]): Promise<void> {
+        if (!this.config.telegram?.enabled) return
+
+        try {
+            const notifier = new TelegramNotifier(this.config.telegram)
+
+            // Aggregate results by email to handle multi-pass duplicates
+            const aggregatedMap = new Map<string, AccountResult>()
+
+            for (const a of accounts) {
+                const existing = aggregatedMap.get(a.email)
+                if (!existing) {
+                    aggregatedMap.set(a.email, {
+                        email: a.email,
+                        pointsEarned: a.totalCollected,
+                        runDuration: a.durationMs,
+                        initialPoints: a.initialTotal,
+                        finalPoints: a.endTotal,
+                        desktopPoints: a.desktopCollected,
+                        mobilePoints: a.mobileCollected,
+                        errors: a.errors,
+                        banned: a.banned?.status
+                    })
+                } else {
+                    // Merge multi-pass data
+                    existing.pointsEarned += a.totalCollected
+                    existing.runDuration += a.durationMs
+                    existing.desktopPoints += a.desktopCollected
+                    existing.mobilePoints += a.mobileCollected
+                    existing.finalPoints = a.endTotal // Update to latest balance
+
+                    if (a.errors.length) existing.errors = (existing.errors || []).concat(a.errors)
+                    if (a.banned?.status) existing.banned = true
+                }
+            }
+
+            const results: AccountResult[] = Array.from(aggregatedMap.values())
+
+            const successCount = results.filter(a => !a.errors?.length && !a.banned).length
+            const totalPoints = results.reduce((sum, acc) => sum + (acc.pointsEarned || 0), 0)
+            const failureCount = results.length - successCount
+
+            // Construct summary data
+            const summaryData: SummaryData = {
+                accounts: results,
+                totalPoints,
+                successCount,
+                failureCount,
+                startTime: new Date(Date.now() - (results.reduce((sum, a) => sum + (a.runDuration || 0), 0) / (this.config.clusters || 1))), // Estimate total duration
+                endTime: new Date()
+            }
+
+            await notifier.sendSummary(summaryData)
+            log('main', 'MAIN', '✓ Telegram summary notification sent')
+        } catch (error) {
+            log('main', 'MAIN', `Failed to send Telegram summary notification: ${error instanceof Error ? error.message : String(error)}`, 'warn')
+        }
     }
 
     private getVersion(): string {
@@ -464,10 +551,14 @@ export class MicrosoftRewardsBot {
     }
 
     private async runTasks(accounts: Account[], currentPass: number = 1, totalPasses: number = 1) {
+        // Shuffle accounts for this pass (different order each pass)
+        const shuffledAccounts = this.utils.shuffleArray([...accounts])
+        log('main', 'TASK', `Pass ${currentPass}: Account order shuffled (${shuffledAccounts.map(a => a.email.split('@')[0]).join(' → ')})`)
+
         // Check if all accounts are already completed and prompt user
         // BUT skip this check for multi-pass runs (passes > 1) OR if not on first pass
         const accountDayKey = this.utils.getFormattedDate()
-        const allCompleted = accounts.every(acc => this.shouldSkipAccount(acc.email, accountDayKey))
+        const allCompleted = shuffledAccounts.every(acc => this.shouldSkipAccount(acc.email, accountDayKey))
 
         // Only check completion on first pass and if not doing multiple passes
         if (allCompleted && accounts.length > 0 && currentPass === 1 && totalPasses === 1) {
@@ -486,7 +577,7 @@ export class MicrosoftRewardsBot {
             this.resetAllJobStates()
         }
 
-        for (const account of accounts) {
+        for (const account of shuffledAccounts) {
             // If a global standby is active due to security/banned, stop processing further accounts
             if (this.globalStandby.active) {
                 log('main', 'SECURITY', `Global standby active (${this.globalStandby.reason || 'security-issue'}). Not proceeding to next accounts until resolved.`, 'warn', 'yellow')
@@ -690,6 +781,16 @@ export class MicrosoftRewardsBot {
             }
 
             await log('main', 'MAIN-WORKER', `Completed tasks for account ${account.email}`, 'log', 'green')
+
+            // Random delay between accounts to avoid detection patterns
+            const isLastAccount = shuffledAccounts.indexOf(account) === shuffledAccounts.length - 1
+            if (!isLastAccount) {
+                const minDelay = parseInt(process.env.ACCOUNT_DELAY_MIN || '60000', 10)  // Default 1 min
+                const maxDelay = parseInt(process.env.ACCOUNT_DELAY_MAX || '180000', 10) // Default 3 min
+                const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay
+                log('main', 'HUMANIZATION', `Waiting ${Math.round(delay / 1000)}s before next account...`, 'log', 'cyan')
+                await this.utils.wait(delay)
+            }
         }
 
         await log(this.isMobile, 'MAIN-PRIMARY', 'Completed tasks for ALL accounts', 'log', 'green')
@@ -1037,14 +1138,12 @@ async function main(): Promise<void> {
     // Scheduler instance (initialized in bootstrap if enabled)
     let scheduler: InternalScheduler | null = null
 
-    // Auto-start dashboard if enabled in config (can be overridden by env var)
-    const dashboardEnvOverride = process.env.REWARDS_DASHBOARD_ENABLED
-    const dashboardEnabled = dashboardEnvOverride !== 'false' && dashboardEnvOverride !== '0' && config.dashboard?.enabled
-    if (cluster.isPrimary && dashboardEnabled) {
+    // Auto-start dashboard if enabled in config
+    if (cluster.isPrimary && config.dashboard?.enabled) {
         const { DashboardServer } = await import('./dashboard/server')
         const { dashboardState } = await import('./dashboard/state')
-        const port = config.dashboard?.port || 3000
-        const host = config.dashboard?.host || '127.0.0.1'
+        const port = config.dashboard.port || 3000
+        const host = config.dashboard.host || '127.0.0.1'
 
         // Override env vars with config values
         process.env.DASHBOARD_PORT = String(port)
@@ -1057,8 +1156,6 @@ async function main(): Promise<void> {
         const dashboardServer = new DashboardServer()
         dashboardServer.start()
         log('main', 'DASHBOARD', `Auto-started dashboard on http://${host}:${port}`)
-    } else if (dashboardEnvOverride === 'false' || dashboardEnvOverride === '0') {
-        log('main', 'DASHBOARD', 'Dashboard disabled via REWARDS_DASHBOARD_ENABLED env var')
     }
 
     /**
@@ -1223,13 +1320,14 @@ async function main(): Promise<void> {
                 log('main', 'MAIN', 'Scheduling enabled - activating scheduler, then executing immediate run', 'log', 'cyan')
 
                 // Start memory monitoring for long-running scheduled sessions
-                const memoryMonitor = getMemoryMonitor({
-                    warningThresholdMB: 500,
-                    criticalThresholdMB: 1024,
-                    leakRateMBPerHour: 50,
-                    samplingIntervalMs: 60000 // Sample every minute
-                })
-                memoryMonitor.start()
+                // DISABLED: Memory monitoring warnings disabled by user request
+                // const memoryMonitor = getMemoryMonitor({
+                //     warningThresholdMB: 500,
+                //     criticalThresholdMB: 1024,
+                //     leakRateMBPerHour: 50,
+                //     samplingIntervalMs: 60000 // Sample every minute
+                // })
+                // memoryMonitor.start()
 
                 // Initialize and start scheduler first
                 scheduler = new InternalScheduler(config, async () => {
@@ -1245,29 +1343,29 @@ async function main(): Promise<void> {
                 const schedulerStarted = scheduler.start()
 
                 if (!schedulerStarted) {
-                    // Scheduler disabled (e.g., via env var for CI) - fall through to one-time execution
-                    log('main', 'MAIN', 'Scheduler not started - falling back to one-time execution mode', 'warn')
-                    // Continue to one-time execution below (don't return here)
-                } else {
-                    log('main', 'MAIN', 'Bot running in scheduled mode. Process will stay alive.', 'log', 'green')
-                    log('main', 'MAIN', 'Press CTRL+C to stop the scheduler and exit.', 'log', 'cyan')
-
-                    // Now run initial execution (scheduler already active for future runs)
-                    try {
-                        await rewardsBot.initialize()
-                        await rewardsBot.run()
-                        log('main', 'MAIN', '✓ Initial run completed successfully', 'log', 'green')
-                    } catch (error) {
-                        log('main', 'MAIN', `Initial run failed: ${error instanceof Error ? error.message : String(error)}`, 'error')
-                        // Scheduler still active - will retry at next scheduled time
-                    }
-
-                    // Keep process alive - scheduler handles future executions
+                    log('main', 'MAIN', 'Scheduler failed to start. Exiting.', 'error')
+                    gracefulExit(1)
                     return
                 }
+
+                log('main', 'MAIN', 'Bot running in scheduled mode. Process will stay alive.', 'log', 'green')
+                log('main', 'MAIN', 'Press CTRL+C to stop the scheduler and exit.', 'log', 'cyan')
+
+                // Now run initial execution (scheduler already active for future runs)
+                try {
+                    await rewardsBot.initialize()
+                    await rewardsBot.run()
+                    log('main', 'MAIN', '✓ Initial run completed successfully', 'log', 'green')
+                } catch (error) {
+                    log('main', 'MAIN', `Initial run failed: ${error instanceof Error ? error.message : String(error)}`, 'error')
+                    // Scheduler still active - will retry at next scheduled time
+                }
+
+                // Keep process alive - scheduler handles future executions
+                return
             }
 
-            // One-time execution (scheduling disabled or scheduler not started)
+            // One-time execution (scheduling disabled)
             await rewardsBot.initialize()
             await rewardsBot.run()
 
